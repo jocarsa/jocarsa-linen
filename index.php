@@ -505,7 +505,7 @@ if ($action == 'presentation') {
       if ($selected_topic) {
           echo "<h3>Tema Seleccionado</h3>";
           echo "<p><strong>" . htmlspecialchars($selected_topic['title']) . "</strong></p>";
-          echo "<p>" . nl2br(htmlspecialchars($selected_topic['content'])) . "</p>";
+          echo "<p>" . nl2br($selected_topic['content']) . "</p>";
       } else {
           echo "<p>Seleccione un tema en la izquierda.</p>";
       }
@@ -661,7 +661,7 @@ if ($action == 'export_scorm') {
 . ":root {\n"
 . "  --header-bg: #283593;\n"
 . "  --header-text: #ffffff;\n"
-. "  --body-bg: linen;\n"
+. "  --body-bg: none;\n"
 . "  --container-bg: #ffffff;\n"
 . "  --text-color: #212121;\n"
 . "  --accent-color: #009688;\n"
@@ -691,7 +691,8 @@ if ($action == 'export_scorm') {
 . "  height: 100%;\n"
 . "  width: 100%;\n"
 . "}\n"
-. ".container{padding:20px;}\n"
+. "body{padding:20px;border-top:15px solid #782f40}\n"
+. ".container{padding-top:20px;}\n"
 . "\n"
 . "/* ...More CSS, same as your style.css... */\n";
 
