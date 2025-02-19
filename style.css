@@ -65,14 +65,24 @@ a:hover {
    Header
    ======================================= */
 header {
-    background-color: var(--header-bg);
-    color: var(--header-text);
+    background-color: black;
+    color: linen;
     padding: 20px;
     text-align: center;
     font-size: 24px;
     font-weight: 700;
     letter-spacing: 1px;
     box-shadow: 0 2px 4px var(--shadow-color);
+    display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	justify-content: center;
+	align-items: center;
+	align-content: stretch;
+	gap:10px;
+}
+header img{
+	width:50px;
 }
 
 /* =======================================

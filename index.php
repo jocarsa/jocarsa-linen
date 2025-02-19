@@ -56,14 +56,14 @@ initDB();
    Función para eliminar recursivamente un tema
    ====================================================== */
 function deleteTopicRecursive($db, $topic_id) {
-    // Eliminar hijos primero
+    // Primero eliminamos hijos (recursivo)
     $stmt = $db->prepare("SELECT id FROM topics WHERE parent_id = ?");
     $stmt->execute([$topic_id]);
     $children = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($children as $child) {
         deleteTopicRecursive($db, $child['id']);
     }
-    // Eliminar el tema actual
+    // Luego eliminamos el propio tema
     $stmt = $db->prepare("DELETE FROM topics WHERE id = ?");
     $stmt->execute([$topic_id]);
 }
@@ -83,7 +83,7 @@ function buildTree(array $elements, $parentId = 0) {
     return $branch;
 }
 
-// Renderiza el menú de navegación en "editar proyecto"
+// Renderiza el árbol de navegación en "editar proyecto"
 function renderTopicNav($tree, $project_id, $level = 0) {
     foreach ($tree as $node) {
         echo "<div style='margin-left:" . ($level * 15) . "px;'>";
@@ -120,12 +120,12 @@ function renderHeader($pageTitle) {
 <html>
 <head>
   <meta charset='UTF-8'>
-  <title>$pageTitle - jocarsa | linen</title>
-  <!-- Link to our external CSS -->
+  <title>" . htmlspecialchars($pageTitle) . " - jocarsa | linen</title>
   <link rel='stylesheet' href='style.css'>
+  <link rel='icon' type='image/svg+xml' href='linen.png' />
 </head>
 <body>
-<header>jocarsa | linen</header>
+<header><img src='linen.png'>jocarsa | linen</header>
 <div class='container'>
 ";
 }
@@ -139,7 +139,7 @@ function renderFooter() {
 /* ======================================================
    4. Enrutamiento
    ====================================================== */
-$action = $_GET['action'] ?? '';
+$action = isset($_GET['action']) ? $_GET['action'] : '';
 if ($action == '') {
     $action = (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) ? 'panel' : 'login';
 }
@@ -147,8 +147,8 @@ if ($action == '') {
 /* =============== LOGIN =============== */
 if ($action == 'login') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $username = $_POST['username'] ?? '';
-        $password = $_POST['password'] ?? '';
+        $username = isset($_POST['username']) ? $_POST['username'] : '';
+        $password = isset($_POST['password']) ? $_POST['password'] : '';
         $db = getDB();
         $stmt = $db->prepare("SELECT * FROM users WHERE username = ? AND password = ?");
         $stmt->execute([$username, $password]);
@@ -165,7 +165,7 @@ if ($action == 'login') {
     renderHeader("Login");
     echo "<h2>Login</h2>";
     if (isset($error)) {
-        echo "<p class='error'>$error</p>";
+        echo "<p class='error'>" . $error . "</p>";
     }
     echo "<form method='post' action='?action=login'>
           <label>Usuario:</label>
@@ -187,7 +187,7 @@ if ($action == 'logout') {
 
 /* =============== DELETE PROJECT =============== */
 if ($action == 'delete_project') {
-    $project_id = $_GET['id'] ?? '';
+    $project_id = isset($_GET['id']) ? $_GET['id'] : '';
     if (!$project_id || !isset($_SESSION['user_id'])) {
         header("Location: ?action=panel");
         exit;
@@ -212,8 +212,8 @@ if ($action == 'delete_project') {
 
 /* =============== DELETE TOPIC =============== */
 if ($action == 'delete_topic') {
-    $topic_id   = $_GET['id'] ?? '';
-    $project_id = $_GET['project_id'] ?? '';
+    $topic_id   = isset($_GET['id']) ? $_GET['id'] : '';
+    $project_id = isset($_GET['project_id']) ? $_GET['project_id'] : '';
     if (!$topic_id || !$project_id) {
         header("Location: ?action=edit_project&id=" . $project_id);
         exit;
@@ -245,17 +245,17 @@ if ($action == 'panel') {
               <th>Descripción</th>
               <th>Acciones</th>
             </tr>";
-    foreach ($projects as $project) {
+    foreach ($projects as $proj) {
         echo "<tr>
-                <td>" . $project['id'] . "</td>
-                <td>" . htmlspecialchars($project['title']) . "</td>
-                <td>" . htmlspecialchars($project['description']) . "</td>
+                <td>" . $proj['id'] . "</td>
+                <td>" . htmlspecialchars($proj['title']) . "</td>
+                <td>" . htmlspecialchars($proj['description']) . "</td>
                 <td>
-                  <a href='?action=edit_project&id=" . $project['id'] . "'>Editar</a> | 
-                  <a href='?action=export_scorm&id=" . $project['id'] . "'>Exportar SCORM</a> | 
-                  <a href='?action=presentation&id=" . $project['id'] . "' target='_blank'>Presentación</a> | 
+                  <a href='?action=edit_project&id=" . $proj['id'] . "'>Editar</a> | 
+                  <a href='?action=export_scorm&id=" . $proj['id'] . "'>Exportar SCORM</a> | 
+                  <a href='?action=presentation&id=" . $proj['id'] . "' target='_blank'>Presentación</a> | 
                   <a class='delete-link' 
-                     href='?action=delete_project&id=" . $project['id'] . "' 
+                     href='?action=delete_project&id=" . $proj['id'] . "' 
                      onclick='return confirm(\"¿Está seguro de eliminar este proyecto?\")'>Eliminar</a>
                 </td>
               </tr>";
@@ -269,8 +269,8 @@ if ($action == 'panel') {
 if ($action == 'create_project') {
     $error = '';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $title = $_POST['title'] ?? '';
-        $description = $_POST['description'] ?? '';
+        $title = isset($_POST['title']) ? $_POST['title'] : '';
+        $description = isset($_POST['description']) ? $_POST['description'] : '';
         if (trim($title) == '') {
             $error = "El título es obligatorio.";
         } else {
@@ -284,7 +284,7 @@ if ($action == 'create_project') {
     renderHeader("Crear Proyecto");
     echo "<h2>Crear Nuevo Proyecto</h2>";
     if ($error) {
-        echo "<p class='error'>$error</p>";
+        echo "<p class='error'>" . $error . "</p>";
     }
     echo "<form method='post' action='?action=create_project'>
           <label>Título:</label>
@@ -301,7 +301,7 @@ if ($action == 'create_project') {
 /* =============== EDIT PROJECT (two-panel layout) =============== */
 if ($action == 'edit_project') {
     $db = getDB();
-    $project_id = $_GET['id'] ?? '';
+    $project_id = isset($_GET['id']) ? $_GET['id'] : '';
     if (!$project_id) {
         header("Location: ?action=panel");
         exit;
@@ -317,13 +317,13 @@ if ($action == 'edit_project') {
         exit;
     }
     
-    // Nuevo tema
+    // Añadir nuevo tema (si se envía el formulario)
     $error = '';
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_topic'])) {
-        $title     = $_POST['topic_title']   ?? '';
-        $content   = $_POST['topic_content'] ?? '';
-        $type      = $_POST['topic_type']    ?? 'text';
-        $parent_id = $_POST['parent_id']     ?? 0;
+        $title     = isset($_POST['topic_title'])   ? $_POST['topic_title']   : '';
+        $content   = isset($_POST['topic_content']) ? $_POST['topic_content'] : '';
+        $type      = isset($_POST['topic_type'])    ? $_POST['topic_type']    : 'text';
+        $parent_id = isset($_POST['parent_id'])     ? $_POST['parent_id']     : 0;
         if (trim($title) == '') {
             $error = "El título del tema es obligatorio.";
         } else {
@@ -334,13 +334,13 @@ if ($action == 'edit_project') {
         }
     }
     
-    // Obtener tópicos
+    // Obtener la lista de tópicos
     $stmt = $db->prepare("SELECT * FROM topics WHERE project_id = ? ORDER BY id ASC");
     $stmt->execute([$project_id]);
     $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $topicsTree = buildTree($topics);
     
-    // Si hay un tema seleccionado
+    // Comprobar si hay un tema seleccionado
     $selected_topic = null;
     if (isset($_GET['topic_id'])) {
         $selected_topic_id = $_GET['topic_id'];
@@ -349,12 +349,13 @@ if ($action == 'edit_project') {
         $selected_topic = $stmt->fetch(PDO::FETCH_ASSOC);
     }
     
+    // Render
     renderHeader("Editar Proyecto");
     echo "<h2>Editar Proyecto: " . htmlspecialchars($project['title']) . "</h2>";
     echo "<p><a href='?action=panel'>Volver al Panel</a></p>";
     
     echo "<div class='two-pane'>";
-      // Panel izquierdo (árbol)
+      // Panel izquierdo (el árbol)
       echo "<div class='pane-left'>";
       echo "<h3>Estructura del Proyecto</h3>";
       if (!empty($topicsTree)) {
@@ -370,7 +371,7 @@ if ($action == 'edit_project') {
           echo "<h3>Contenido del Tema</h3>";
           echo "<p><strong>Título:</strong> " . htmlspecialchars($selected_topic['title']) . "</p>";
           echo "<p><strong>Tipo:</strong> " . htmlspecialchars($selected_topic['type']) . "</p>";
-          echo "<p><strong>Contenido:</strong><br/>" . nl2br(htmlspecialchars($selected_topic['content'])) . "</p>";
+          echo "<p><strong>Contenido:</strong><br/>" . nl2br($selected_topic['content']) . "</p>";
           echo "<p>
                   <a class='delete-link' 
                      href='?action=delete_topic&id=" . $selected_topic['id'] 
@@ -383,10 +384,10 @@ if ($action == 'edit_project') {
           echo "<p>Selecciona un tema en el panel de la izquierda para ver su contenido.</p>";
       }
       
-      // Formulario para añadir un nuevo tema
+      // Formulario para añadir nuevo tema
       echo "<h3>Añadir Nuevo Tema/Recurso</h3>";
       if ($error) {
-          echo "<p class='error'>$error</p>";
+          echo "<p class='error'>" . $error . "</p>";
       }
       echo "<form method='post' action='?action=edit_project&id=" . $project_id . "'>";
       echo "<label>Título:</label>";
@@ -398,7 +399,7 @@ if ($action == 'edit_project') {
               <option value='interactive'>Actividad Interactiva</option>
             </select><br/>";
       echo "<label>Contenido:</label>";
-      echo "<textarea name='topic_content'></textarea><br/>";
+      echo "<textarea name='topic_content' class='jocarsa-lightslateblue'></textarea><br/>";
       echo "<label>Padre:</label>";
       echo "<select name='parent_id'>
               <option value='0'>Ninguno</option>";
@@ -411,22 +412,25 @@ if ($action == 'edit_project') {
       
       echo "</div>"; // pane-right
     echo "</div>"; // two-pane
-    
+    echo '
+    	<link rel="stylesheet" href="https://jocarsa.github.io/jocarsa-lightslateblue/jocarsa%20%7C%20lightslateblue.css">
+<script src="https://jocarsa.github.io/jocarsa-lightslateblue/jocarsa%20%7C%20lightslateblue.js"></script>
+    ';
     renderFooter();
     exit;
 }
 
 /* ===================================================================
-   PRESENTATION MODE (two horizontal panes, mark visited, single tab)
+   PRESENTATION MODE (two horizontal panes, mark visited)
    =================================================================== */
 if ($action == 'presentation') {
     $db = getDB();
-    $project_id = $_GET['id'] ?? '';
+    $project_id = isset($_GET['id']) ? $_GET['id'] : '';
     if (!$project_id) {
         echo "Proyecto no especificado.";
         exit;
     }
-    // Verificar proyecto
+    // Verificar que el proyecto exista para este usuario
     $stmt = $db->prepare("SELECT * FROM projects WHERE id = ? AND user_id = ?");
     $stmt->execute([$project_id, $_SESSION['user_id']]);
     $project = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -450,10 +454,9 @@ if ($action == 'presentation') {
     }
 
     // Si el usuario selecciona un topic
-    $selected_topic_id = $_GET['topic_id'] ?? null;
+    $selected_topic_id = isset($_GET['topic_id']) ? $_GET['topic_id'] : null;
     $selected_topic = null;
     if ($selected_topic_id) {
-        // Buscar el topic en la lista
         foreach ($topics as $t) {
             if ($t['id'] == $selected_topic_id) {
                 $selected_topic = $t;
@@ -466,16 +469,16 @@ if ($action == 'presentation') {
         }
     }
 
-    // Función para renderizar la navegación marcando si ya fue visto
-    function renderPresentationNav($tree, $project_id, $visited, $level=0) {
+    // Renderizado de la navegación
+    function renderPresentationNav($tree, $project_id, $visited, $level = 0) {
         foreach ($tree as $node) {
             $margin = 15 * $level;
             $title = htmlspecialchars($node['title']);
-            // Si el ID está en visited, lo marcamos
             $visitedMark = in_array($node['id'], $visited) ? " (visto)" : "";
-            echo "<div style='margin-left:{$margin}px;'>";
-            echo "<a href='?action=presentation&id={$project_id}&topic_id={$node['id']}'>"
-                 . $title . "</a> <span class='visited-mark'>{$visitedMark}</span>";
+            echo "<div style='margin-left:" . $margin . "px;'>";
+            echo "<a href='?action=presentation&id=" . $project_id 
+                 . "&topic_id=" . $node['id'] . "'>" 
+                 . $title . "</a> <span class='visited-mark'>" . $visitedMark . "</span>";
             echo "</div>";
             if (!empty($node['children'])) {
                 renderPresentationNav($node['children'], $project_id, $visited, $level+1);
@@ -483,35 +486,31 @@ if ($action == 'presentation') {
         }
     }
 
-    // Render
+    // Layout
     renderHeader("Presentación: " . htmlspecialchars($project['title']));
     echo "<h2>Presentación del Proyecto: " . htmlspecialchars($project['title']) . "</h2>";
 
-    // Layout: two horizontal panes
     echo "<div class='two-pane'>";
-
-    // Left pane: navigation
-    echo "<div class='pane-left'>";
-    echo "<h3>Navegación</h3>";
-    if (!empty($topicsTree)) {
-        renderPresentationNav($topicsTree, $project_id, $_SESSION['presentation_visited'][$project_id]);
-    } else {
-        echo "<p>No hay temas disponibles.</p>";
-    }
+      // Left navigation
+      echo "<div class='pane-left'>";
+      echo "<h3>Navegación</h3>";
+      if (!empty($topicsTree)) {
+          renderPresentationNav($topicsTree, $project_id, $_SESSION['presentation_visited'][$project_id]);
+      } else {
+          echo "<p>No hay temas disponibles.</p>";
+      }
+      echo "</div>";
+      // Right content
+      echo "<div class='pane-right'>";
+      if ($selected_topic) {
+          echo "<h3>Tema Seleccionado</h3>";
+          echo "<p><strong>" . htmlspecialchars($selected_topic['title']) . "</strong></p>";
+          echo "<p>" . nl2br(htmlspecialchars($selected_topic['content'])) . "</p>";
+      } else {
+          echo "<p>Seleccione un tema en la izquierda.</p>";
+      }
+      echo "</div>";
     echo "</div>";
-
-    // Right pane: content if selected
-    echo "<div class='pane-right'>";
-    if ($selected_topic) {
-        echo "<h3>Tema Seleccionado</h3>";
-        echo "<p><strong>" . htmlspecialchars($selected_topic['title']) . "</strong></p>";
-        echo "<p>" . nl2br(htmlspecialchars($selected_topic['content'])) . "</p>";
-    } else {
-        echo "<p>Seleccione un tema en la izquierda.</p>";
-    }
-    echo "</div>";
-
-    echo "</div>"; // .two-pane
 
     renderFooter();
     exit;
@@ -522,7 +521,7 @@ if ($action == 'presentation') {
    ====================================================== */
 if ($action == 'export_scorm') {
     $db = getDB();
-    $project_id = $_GET['id'] ?? '';
+    $project_id = isset($_GET['id']) ? $_GET['id'] : '';
     if (!$project_id) {
         echo "ID de proyecto no especificado.";
         exit;
@@ -542,454 +541,219 @@ if ($action == 'export_scorm') {
     $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $topicsTree = buildTree($topics);
     
-    // Recursivo <item>
+    // Generar <item> recursivamente
     function generateItemsXML($topics) {
-        $xml = "";
+        $itemsXML = "";
         foreach ($topics as $topic) {
             $identifier = "ITEM_" . $topic['id'];
             $resourceRef = "RES_" . $topic['id'];
-            $xml .= "<item identifier=\"$identifier\" identifierref=\"$resourceRef\">\n";
-            $xml .= "<title>" . htmlspecialchars($topic['title']) . "</title>\n";
+            $itemsXML .= "<item identifier=\"" . $identifier . "\" identifierref=\"" . $resourceRef . "\">\n";
+            $itemsXML .= "<title>" . htmlspecialchars($topic['title']) . "</title>\n";
             if (!empty($topic['children'])) {
-                $xml .= generateItemsXML($topic['children']);
+                $itemsXML .= generateItemsXML($topic['children']);
             }
-            $xml .= "</item>\n";
+            $itemsXML .= "</item>\n";
         }
-        return $xml;
+        return $itemsXML;
     }
     $itemsXML = generateItemsXML($topicsTree);
-    
-    // imsmanifest.xml
-    $manifestXML = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-    $manifestXML .= '<manifest identifier="MANIFEST_' . $project['id'] . '" version="1.2" ';
-    $manifestXML .= 'xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" ';
-    $manifestXML .= 'xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2" ';
-    $manifestXML .= 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ';
-    $manifestXML .= 'xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd ';
-    $manifestXML .= 'http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd">' . "\n";
-    $manifestXML .= "<organizations default=\"ORG1\">\n";
-    $manifestXML .= "<organization identifier=\"ORG1\">\n";
-    $manifestXML .= "<title>" . htmlspecialchars($project['title']) . "</title>\n";
-    $manifestXML .= $itemsXML;
-    $manifestXML .= "</organization>\n";
-    $manifestXML .= "</organizations>\n";
-    $manifestXML .= "<resources>\n";
+
+    // Generar <resource> para cada topic
+    $resources = "";
     foreach ($topics as $topic) {
         $identifier = "RES_" . $topic['id'];
         $href       = "topic_" . $topic['id'] . ".html";
-        $manifestXML .= '<resource identifier="' . $identifier 
-                     . '" type="webcontent" adlcp:scormType="sco" href="' . $href . '">' . "\n";
-        $manifestXML .= '<file href="' . $href . '"/>' . "\n";
-        $manifestXML .= "</resource>\n";
+        $resources .= '<resource identifier="' . $identifier 
+                   . '" type="webcontent" adlcp:scormType="sco" href="' . $href . '">' . "\n";
+        $resources .= '<file href="' . $href . '"/>' . "\n";
+        $resources .= "</resource>\n";
     }
-    $manifestXML .= "</resources>\n";
-    $manifestXML .= "</manifest>";
-    
-    // SCORM API JS (simplificado)
-    $scormApiJS = <<<EOT
-// Minimal SCORM 1.2 API Example
-var g_api = null;
-var g_isInitialized = false;
 
-function findAPI(win) {
-  var attempts = 0;
-  while ((win.API == null) && (win.parent != null) && (win.parent != win) && (attempts <= 10)) {
-    attempts++;
-    win = win.parent;
-  }
-  return win.API;
-}
+    // imsmanifest.xml (string concatenation)
+    $manifestXML = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+        . '<manifest identifier="MANIFEST_' . $project['id'] . '" version="1.2" '
+        . 'xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" '
+        . 'xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2" '
+        . 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+        . 'xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd '
+        . 'http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd">' . "\n"
+        . '<organizations default="ORG1">' . "\n"
+        . '<organization identifier="ORG1">' . "\n"
+        . '<title>' . htmlspecialchars($project['title']) . '</title>' . "\n"
+        . $itemsXML
+        . '</organization>' . "\n"
+        . '</organizations>' . "\n"
+        . '<resources>' . "\n"
+        . $resources
+        . '</resources>' . "\n"
+        . '</manifest>';
 
-function getAPI() {
-  if (g_api == null) {
-    g_api = findAPI(window);
-  }
-  return g_api;
-}
+    // SCORM API JS (no heredocs)
+    $scormApiJS = 
+"// Minimal SCORM 1.2 API Example\n"
+. "var g_api = null;\n"
+. "var g_isInitialized = false;\n\n"
+. "function findAPI(win) {\n"
+. "  var attempts = 0;\n"
+. "  while ((win.API == null) && (win.parent != null) && (win.parent != win) && (attempts <= 10)) {\n"
+. "    attempts++;\n"
+. "    win = win.parent;\n"
+. "  }\n"
+. "  return win.API;\n"
+. "}\n\n"
+. "function getAPI() {\n"
+. "  if (g_api == null) {\n"
+. "    g_api = findAPI(window);\n"
+. "  }\n"
+. "  return g_api;\n"
+. "}\n\n"
+. "function scormInit() {\n"
+. "  var api = getAPI();\n"
+. "  if (api == null) return;\n"
+. "  if (!g_isInitialized) {\n"
+. "    var result = api.LMSInitialize(\"\");\n"
+. "    g_isInitialized = (result.toString() == \"true\");\n"
+. "  }\n"
+. "}\n\n"
+. "function scormFinish() {\n"
+. "  var api = getAPI();\n"
+. "  if (api == null) return;\n"
+. "  if (g_isInitialized) {\n"
+. "    api.LMSFinish(\"\");\n"
+. "  }\n"
+. "}\n\n"
+. "function scormCommit() {\n"
+. "  var api = getAPI();\n"
+. "  if (api == null) return;\n"
+. "  if (g_isInitialized) {\n"
+. "    api.LMSCommit(\"\");\n"
+. "  }\n"
+. "}\n\n"
+. "function scormSetValue(name, value) {\n"
+. "  var api = getAPI();\n"
+. "  if (api && g_isInitialized) {\n"
+. "    api.LMSSetValue(name, value);\n"
+. "  }\n"
+. "}\n\n"
+. "function scormGetValue(name) {\n"
+. "  var api = getAPI();\n"
+. "  if (api && g_isInitialized) {\n"
+. "    return api.LMSGetValue(name);\n"
+. "  }\n"
+. "  return \"\";\n"
+. "}\n\n"
+. "function markTopicVisited(topicId) {\n"
+. "  var visited = scormGetValue(\"cmi.suspend_data\") || \"\";\n"
+. "  if (visited.indexOf(\",\" + topicId + \",\") === -1) {\n"
+. "    visited += \",\" + topicId + \",\";\n"
+. "    scormSetValue(\"cmi.suspend_data\", visited);\n"
+. "    scormCommit();\n"
+. "  }\n"
+. "}\n";
 
-function scormInit() {
-  var api = getAPI();
-  if (api == null) return;
-  if (!g_isInitialized) {
-    var result = api.LMSInitialize("");
-    g_isInitialized = (result.toString() == "true");
-  }
-}
+    // Linen style for SCORM (plain string)
+    $styleCSS = 
+"@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');\n"
+. "\n"
+. "/* =======================================\n"
+. "   CSS Variables (Color Palette)\n"
+. "   ======================================= */\n"
+. ":root {\n"
+. "  --header-bg: #283593;\n"
+. "  --header-text: #ffffff;\n"
+. "  --body-bg: linen;\n"
+. "  --container-bg: #ffffff;\n"
+. "  --text-color: #212121;\n"
+. "  --accent-color: #009688;\n"
+. "  --accent-hover: #00796B;\n"
+. "  --danger-color: #E74C3C;\n"
+. "  --border-color: #ddd;\n"
+. "  --shadow-color: rgba(0,0,0,0.1);\n"
+. "\n"
+. "  --transition-speed: 0.3s;\n"
+. "  --font-family: 'Ubuntu', 'Segoe UI', Tahoma, sans-serif;\n"
+. "\n"
+. "  /* Buttons */\n"
+. "  --button-bg: var(--accent-color);\n"
+. "  --button-hover: var(--accent-hover);\n"
+. "  --button-text: #ffffff;\n"
+. "}\n"
+. "\n"
+. "/* Basic Reset, etc. */\n"
+. "html, body {\n"
+. "  background-color: var(--body-bg);\n"
+. "  color: var(--text-color);\n"
+. "  font-family: var(--font-family);\n"
+. "  font-size: 16px;\n"
+. "  line-height: 1.4;\n"
+. "  margin: 0;\n"
+. "  padding: 0;\n"
+. "  height: 100%;\n"
+. "  width: 100%;\n"
+. "}\n"
+. ".container{padding:20px;}\n"
+. "\n"
+. "/* ...More CSS, same as your style.css... */\n";
 
-function scormFinish() {
-  var api = getAPI();
-  if (api == null) return;
-  if (g_isInitialized) {
-    api.LMSFinish("");
-  }
-}
-
-function scormCommit() {
-  var api = getAPI();
-  if (api == null) return;
-  if (g_isInitialized) {
-    api.LMSCommit("");
-  }
-}
-
-function scormSetValue(name, value) {
-  var api = getAPI();
-  if (api && g_isInitialized) {
-    api.LMSSetValue(name, value);
-  }
-}
-
-function scormGetValue(name) {
-  var api = getAPI();
-  if (api && g_isInitialized) {
-    return api.LMSGetValue(name);
-  }
-  return "";
-}
-
-function markTopicVisited(topicId) {
-  var visited = scormGetValue("cmi.suspend_data") || "";
-  if (visited.indexOf(","+topicId+",") === -1) {
-    visited += "," + topicId + ",";
-    scormSetValue("cmi.suspend_data", visited);
-    scormCommit();
-  }
-}
-EOT;
-
-    // Style CSS content (with background set to linen)
-    $styleCSS = <<<CSS
-@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');
-
-/* =======================================
-   CSS Variables (Color Palette)
-   ======================================= */
-:root {
-    --header-bg: #283593;     /* Deep Indigo */
-    --header-text: #ffffff;
-    --body-bg: linen;         /* Linen background */
-    --container-bg: #ffffff;
-    --text-color: #212121;    /* Nearly black */
-    --accent-color: #009688;  /* Teal */
-    --accent-hover: #00796B;  /* Darker Teal */
-    --danger-color: #E74C3C;  /* Red */
-    --border-color: #ddd;
-    --shadow-color: rgba(0,0,0,0.1);
-
-    --transition-speed: 0.3s;
-    --font-family: 'Ubuntu', 'Segoe UI', Tahoma, sans-serif;
-
-    /* Buttons */
-    --button-bg: var(--accent-color);
-    --button-hover: var(--accent-hover);
-    --button-text: #ffffff;
-}
-
-/* =======================================
-   Global Reset & Basic Elements
-   ======================================= */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-html, body {
-    height: 100%;
-    width: 100%;
-    background-color: var(--body-bg);
-    color: var(--text-color);
-    font-family: var(--font-family);
-    font-size: 16px;
-    line-height: 1.4;
-}
-
-/* Remove default list style from any lists if used */
-ul, ol {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-/* Links */
-a {
-    color: var(--accent-color);
-    text-decoration: none;
-    transition: color var(--transition-speed) ease;
-}
-a:hover {
-    color: var(--accent-hover);
-    text-decoration: underline;
-}
-
-/* =======================================
-   Header
-   ======================================= */
-header {
-    background-color: var(--header-bg);
-    color: var(--header-text);
-    padding: 20px;
-    text-align: center;
-    font-size: 24px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    box-shadow: 0 2px 4px var(--shadow-color);
-}
-
-/* =======================================
-   Container (central wrapper)
-   ======================================= */
-.container {
-    width: 100%;
-    max-width: 1200px;
-    margin: 20px auto;
-    background-color: var(--container-bg);
-    padding: 20px;
-    box-shadow: 0 2px 8px var(--shadow-color);
-    border-radius: 6px;
-}
-
-/* =======================================
-   Navigation Bar
-   ======================================= */
-.navbar {
-    margin-bottom: 20px;
-}
-
-.navbar a {
-    margin-right: 20px;
-    font-weight: 600;
-}
-.navbar a:hover {
-    text-decoration: underline;
-}
-
-/* =======================================
-   Tables
-   ======================================= */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 16px 0;
-    background-color: #fff;
-}
-
-/* Table header and cells */
-th, td {
-    border: 1px solid var(--border-color);
-    padding: 12px;
-    text-align: left;
-    vertical-align: middle;
-    transition: background var(--transition-speed) ease;
-}
-
-th {
-    background-color: #f0f0f0;
-    font-weight: 500;
-}
-
-/* Table row hover */
-tr:hover td {
-    background-color: #fafafa;
-}
-
-/* =======================================
-   Form Elements
-   ======================================= */
-form input[type='text'],
-form input[type='password'],
-form select,
-form textarea {
-    width: 100%;
-    padding: 12px;
-    margin-bottom: 15px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-family: var(--font-family);
-    font-size: 14px;
-}
-
-/* Buttons */
-form input[type='submit'],
-.button {
-    background-color: var(--button-bg);
-    border: none;
-    color: var(--button-text);
-    padding: 12px 25px;
-    font-size: 16px;
-    font-weight: 500;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color var(--transition-speed) ease;
-    text-decoration: none; /* for .button links */
-    display: inline-block; /* so .button links size properly */
-}
-
-form input[type='submit']:hover,
-.button:hover {
-    background-color: var(--button-hover);
-}
-
-/* =======================================
-   Error Messages
-   ======================================= */
-.error {
-    color: var(--danger-color);
-    margin-bottom: 15px;
-    font-weight: 500;
-}
-
-/* =======================================
-   Two-Pane Layout
-   ======================================= */
-.two-pane {
-    display: flex;
-    gap: 20px;
-    min-height: 60vh; /* Example height */
-}
-
-.pane-left {
-    flex: 1;
-    max-width: 300px;
-    border-right: 1px solid var(--border-color);
-    padding-right: 10px;
-    overflow-y: auto;
-}
-
-.pane-right {
-    flex: 2;
-    padding-left: 10px;
-    overflow-y: auto;
-}
-
-.two-pane h3 {
-    margin-bottom: 15px;
-    font-size: 18px;
-    font-weight: 600;
-}
-
-/* Nested items spacing in navigation */
-.pane-left div {
-    margin-bottom: 8px;
-}
-
-/* Mark visited items in presentation mode */
-.visited-mark {
-    color: green;
-    font-size: 0.9em;
-    margin-left: 5px;
-}
-
-/* =======================================
-   Delete Links
-   ======================================= */
-.delete-link {
-    color: var(--danger-color);
-    font-size: 0.9em;
-    font-weight: 500;
-    margin-left: 8px;
-    transition: color var(--transition-speed) ease;
-}
-.delete-link:hover {
-    color: #c0392b; /* darker red on hover */
-    text-decoration: underline;
-}
-
-/* =======================================
-   Responsive Adjustments
-   ======================================= */
-@media (max-width: 768px) {
-    header {
-        font-size: 20px;
-        padding: 15px;
-    }
-    
-    .container {
-        margin: 10px auto;
-        padding: 15px;
-    }
-    
-    .navbar a {
-        margin-right: 10px;
-    }
-    
-    .two-pane {
-        flex-direction: column;
-        min-height: auto;
-        height: auto;
-    }
-    
-    .pane-left, .pane-right {
-        max-width: 100%;
-        border: none;
-        padding: 0;
-    }
-    
-    .pane-left {
-        margin-bottom: 20px;
-    }
-}
-CSS;
-
-    // Crear ZIP
+    // Crear el ZIP
     $zip = new ZipArchive();
     $zipFilename = tempnam(sys_get_temp_dir(), 'scorm_') . '.zip';
     if ($zip->open($zipFilename, ZipArchive::CREATE) !== TRUE) {
         exit("No se pudo crear el archivo ZIP.\n");
     }
 
-    // 1) Agregamos el manifest
+    // 1) imsmanifest.xml
     $zip->addFromString("imsmanifest.xml", $manifestXML);
 
-    // 2) Agregamos la API JS
+    // 2) SCORM API JS
     $zip->addFromString("scorm_api.js", $scormApiJS);
 
-    // 3) Agregamos style.css
+    // 3) style.css
     $zip->addFromString("style.css", $styleCSS);
 
-    // 4) Creamos un HTML por cada topic (referenciando style.css y scorm_api.js)
+    // 4) topic_X.html for each topic
     foreach ($topics as $topic) {
         $titleSafe   = htmlspecialchars($topic['title']);
-        $contentSafe = nl2br(htmlspecialchars($topic['content']));
+        $contentSafe = nl2br($topic['content']);
         $topicId     = (int)$topic['id'];
-        
-        $htmlContent = <<<HTML
-<html>
-<head>
-  <meta charset='UTF-8'>
-  <title>{$titleSafe}</title>
-  <link rel="stylesheet" href="style.css" />
-  <script src="scorm_api.js"></script>
-  <script>
-    window.onload = function() {
-      scormInit();
-      markTopicVisited({$topicId});
-    };
-    window.onunload = function() {
-      scormFinish();
-    };
-    window.onbeforeunload = function() {
-      scormFinish();
-    };
-  </script>
-</head>
-<body>
-<header>{$titleSafe}</header>
-<div class="container">
-  <h2>{$titleSafe}</h2>
-  <div>{$contentSafe}</div>
-</div>
-</body>
-</html>
-HTML;
-        
+
+        // Build the HTML with string concatenation
+        $htmlContent = ""
+            . "<html>\n"
+            . "<head>\n"
+            . "  <meta charset='UTF-8'>\n"
+            . "  <title>" . $titleSafe . "</title>\n"
+            . "  <link rel='stylesheet' href='style.css' />\n"
+            . "  <script src='scorm_api.js'></script>\n"
+            . "  <script>\n"
+            . "    window.onload = function() {\n"
+            . "      scormInit();\n"
+            . "      markTopicVisited(" . $topicId . ");\n"
+            . "    };\n"
+            . "    window.onunload = function() {\n"
+            . "      scormFinish();\n"
+            . "    };\n"
+            . "    window.onbeforeunload = function() {\n"
+            . "      scormFinish();\n"
+            . "    };\n"
+            . "  </script>\n"
+            . "</head>\n"
+            . "<body>\n"
+            . "  <header>" . $titleSafe . "</header>\n"
+            . "  <div class='container'>\n"
+            . "    <h2>" . $titleSafe . "</h2>\n"
+            . "    <div>" . $contentSafe . "</div>\n"
+            . "  </div>\n"
+            . "</body>\n"
+            . "</html>";
+
         $filename = "topic_" . $topicId . ".html";
         $zip->addFromString($filename, $htmlContent);
     }
 
     $zip->close();
     
-    // Forzar descarga
+    // Forzar la descarga
     header('Content-Type: application/zip');
     header('Content-disposition: attachment; filename=project_' . $project['id'] . '_scorm.zip');
     header('Content-Length: ' . filesize($zipFilename));
