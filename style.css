@@ -1,0 +1,271 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');
+
+/* =======================================
+   CSS Variables (Color Palette)
+   ======================================= */
+:root {
+    --header-bg: #283593;     /* Deep Indigo */
+    --header-text: #ffffff;
+    --body-bg: linen;         /* Linen background */
+    --container-bg: #ffffff;
+    --text-color: #212121;    /* Nearly black */
+    --accent-color: #009688;  /* Teal */
+    --accent-hover: #00796B;  /* Darker Teal */
+    --danger-color: #E74C3C;  /* Red */
+    --border-color: #ddd;
+    --shadow-color: rgba(0,0,0,0.1);
+
+    --transition-speed: 0.3s;
+    --font-family: 'Ubuntu', 'Segoe UI', Tahoma, sans-serif;
+
+    /* Buttons */
+    --button-bg: var(--accent-color);
+    --button-hover: var(--accent-hover);
+    --button-text: #ffffff;
+}
+
+/* =======================================
+   Global Reset & Basic Elements
+   ======================================= */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+    background-color: var(--body-bg);
+    color: var(--text-color);
+    font-family: var(--font-family);
+    font-size: 16px;
+    line-height: 1.4;
+}
+
+/* Remove default list style from any lists if used */
+ul, ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Links */
+a {
+    color: var(--accent-color);
+    text-decoration: none;
+    transition: color var(--transition-speed) ease;
+}
+a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+/* =======================================
+   Header
+   ======================================= */
+header {
+    background-color: var(--header-bg);
+    color: var(--header-text);
+    padding: 20px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+/* =======================================
+   Container (central wrapper)
+   ======================================= */
+.container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 20px auto;
+    background-color: var(--container-bg);
+    padding: 20px;
+    box-shadow: 0 2px 8px var(--shadow-color);
+    border-radius: 6px;
+}
+
+/* =======================================
+   Navigation Bar
+   ======================================= */
+.navbar {
+    margin-bottom: 20px;
+}
+
+.navbar a {
+    margin-right: 20px;
+    font-weight: 600;
+}
+.navbar a:hover {
+    text-decoration: underline;
+}
+
+/* =======================================
+   Tables
+   ======================================= */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    background-color: #fff;
+}
+
+/* Table header and cells */
+th, td {
+    border: 1px solid var(--border-color);
+    padding: 12px;
+    text-align: left;
+    vertical-align: middle;
+    transition: background var(--transition-speed) ease;
+}
+
+th {
+    background-color: #f0f0f0;
+    font-weight: 500;
+}
+
+/* Table row hover */
+tr:hover td {
+    background-color: #fafafa;
+}
+
+/* =======================================
+   Form Elements
+   ======================================= */
+form input[type='text'],
+form input[type='password'],
+form select,
+form textarea {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: var(--font-family);
+    font-size: 14px;
+}
+
+/* Buttons */
+form input[type='submit'],
+.button {
+    background-color: var(--button-bg);
+    border: none;
+    color: var(--button-text);
+    padding: 12px 25px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color var(--transition-speed) ease;
+    text-decoration: none; /* for .button links */
+    display: inline-block; /* so .button links size properly */
+}
+
+form input[type='submit']:hover,
+.button:hover {
+    background-color: var(--button-hover);
+}
+
+/* =======================================
+   Error Messages
+   ======================================= */
+.error {
+    color: var(--danger-color);
+    margin-bottom: 15px;
+    font-weight: 500;
+}
+
+/* =======================================
+   Two-Pane Layout
+   ======================================= */
+.two-pane {
+    display: flex;
+    gap: 20px;
+    min-height: 60vh; /* Example height */
+}
+
+.pane-left {
+    flex: 1;
+    max-width: 300px;
+    border-right: 1px solid var(--border-color);
+    padding-right: 10px;
+    overflow-y: auto;
+}
+
+.pane-right {
+    flex: 2;
+    padding-left: 10px;
+    overflow-y: auto;
+}
+
+.two-pane h3 {
+    margin-bottom: 15px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* Nested items spacing in navigation */
+.pane-left div {
+    margin-bottom: 8px;
+}
+
+/* Mark visited items in presentation mode */
+.visited-mark {
+    color: green;
+    font-size: 0.9em;
+    margin-left: 5px;
+}
+
+/* =======================================
+   Delete Links
+   ======================================= */
+.delete-link {
+    color: var(--danger-color);
+    font-size: 0.9em;
+    font-weight: 500;
+    margin-left: 8px;
+    transition: color var(--transition-speed) ease;
+}
+.delete-link:hover {
+    color: #c0392b; /* darker red on hover */
+    text-decoration: underline;
+}
+
+/* =======================================
+   Responsive Adjustments
+   ======================================= */
+@media (max-width: 768px) {
+    header {
+        font-size: 20px;
+        padding: 15px;
+    }
+    
+    .container {
+        margin: 10px auto;
+        padding: 15px;
+    }
+    
+    .navbar a {
+        margin-right: 10px;
+    }
+    
+    .two-pane {
+        flex-direction: column;
+        min-height: auto;
+        height: auto;
+    }
+    
+    .pane-left, .pane-right {
+        max-width: 100%;
+        border: none;
+        padding: 0;
+    }
+    
+    .pane-left {
+        margin-bottom: 20px;
+    }
+}
+
