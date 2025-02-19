@@ -317,8 +317,30 @@ if ($action == 'edit_project') {
         exit;
     }
     
-    // Añadir nuevo tema (si se envía el formulario)
+    // >>> NEW OR MODIFIED CODE <<<
+    // Handling the creation AND editing of topics in one place:
     $error = '';
+
+    // 1) Update existing topic (if "edit_topic" param and form is submitted)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_topic'])) {
+        $topic_id   = isset($_POST['topic_id']) ? $_POST['topic_id'] : '';
+        $title      = isset($_POST['topic_title'])   ? $_POST['topic_title']   : '';
+        $content    = isset($_POST['topic_content']) ? $_POST['topic_content'] : '';
+        $type       = isset($_POST['topic_type'])    ? $_POST['topic_type']    : 'text';
+
+        if (trim($title) == '') {
+            $error = "El título del tema es obligatorio.";
+        } else {
+            $stmt = $db->prepare("UPDATE topics 
+                                  SET title = ?, content = ?, type = ?
+                                  WHERE id = ? AND project_id = ?");
+            $stmt->execute([$title, $content, $type, $topic_id, $project_id]);
+            header("Location: ?action=edit_project&id=" . $project_id . "&topic_id=" . $topic_id);
+            exit;
+        }
+    }
+
+    // 2) Create new topic (if "new_topic" form is submitted)
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_topic'])) {
         $title     = isset($_POST['topic_title'])   ? $_POST['topic_title']   : '';
         $content   = isset($_POST['topic_content']) ? $_POST['topic_content'] : '';
@@ -329,11 +351,13 @@ if ($action == 'edit_project') {
         } else {
             $stmt = $db->prepare("INSERT INTO topics (project_id, parent_id, title, content, type) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$project_id, $parent_id, $title, $content, $type]);
+            // After creation, redirect back
             header("Location: ?action=edit_project&id=" . $project_id);
             exit;
         }
     }
-    
+    // >>> END NEW OR MODIFIED CODE <<<
+
     // Obtener la lista de tópicos
     $stmt = $db->prepare("SELECT * FROM topics WHERE project_id = ? ORDER BY id ASC");
     $stmt->execute([$project_id]);
@@ -355,63 +379,118 @@ if ($action == 'edit_project') {
     echo "<p><a href='?action=panel'>Volver al Panel</a></p>";
     
     echo "<div class='two-pane'>";
+
+      // ================================
       // Panel izquierdo (el árbol)
+      // ================================
       echo "<div class='pane-left'>";
-      echo "<h3>Estructura del Proyecto</h3>";
-      if (!empty($topicsTree)) {
-          renderTopicNav($topicsTree, $project_id);
-      } else {
-          echo "<p>No hay temas creados.</p>";
-      }
+        echo "<h3>Estructura del Proyecto</h3>";
+        if (!empty($topicsTree)) {
+            renderTopicNav($topicsTree, $project_id);
+        } else {
+            echo "<p>No hay temas creados.</p>";
+        }
+
+        // >>> NEW OR MODIFIED CODE <<<
+        // Button to show "Crear Nuevo Tema/Recurso" form in the right pane
+        // We'll pass a GET parameter 'show_new_topic=1' to display that form
+        echo "<p style='margin-top:20px;'>
+                <a class='button' 
+                   href='?action=edit_project&id=" . $project_id . "&show_new_topic=1'>
+                   Añadir Nuevo Tema/Recurso
+                </a>
+              </p>";
+        // >>> END NEW OR MODIFIED CODE <<<
       echo "</div>";
       
+      // =================================
       // Panel derecho (contenido)
+      // =================================
       echo "<div class='pane-right'>";
-      if ($selected_topic) {
-          echo "<h3>Contenido del Tema</h3>";
-          echo "<p><strong>Título:</strong> " . htmlspecialchars($selected_topic['title']) . "</p>";
-          echo "<p><strong>Tipo:</strong> " . htmlspecialchars($selected_topic['type']) . "</p>";
-          echo "<p><strong>Contenido:</strong><br/>" . nl2br($selected_topic['content']) . "</p>";
-          echo "<p>
-                  <a class='delete-link' 
-                     href='?action=delete_topic&id=" . $selected_topic['id'] 
-                     . "&project_id=" . $project_id 
-                     . "' onclick='return confirm(\"¿Está seguro de eliminar este tema?\")'>
-                      Eliminar Tema
-                  </a>
-                </p>";
-      } else {
-          echo "<p>Selecciona un tema en el panel de la izquierda para ver su contenido.</p>";
-      }
-      
-      // Formulario para añadir nuevo tema
-      echo "<h3>Añadir Nuevo Tema/Recurso</h3>";
-      if ($error) {
-          echo "<p class='error'>" . $error . "</p>";
-      }
-      echo "<form method='post' action='?action=edit_project&id=" . $project_id . "'>";
-      echo "<label>Título:</label>";
-      echo "<input type='text' name='topic_title' required /><br/>";
-      echo "<label>Tipo:</label>";
-      echo "<select name='topic_type'>
-              <option value='text'>Texto</option>
-              <option value='task'>Tarea</option>
-              <option value='interactive'>Actividad Interactiva</option>
-            </select><br/>";
-      echo "<label>Contenido:</label>";
-      echo "<textarea name='topic_content' class='jocarsa-lightslateblue'></textarea><br/>";
-      echo "<label>Padre:</label>";
-      echo "<select name='parent_id'>
-              <option value='0'>Ninguno</option>";
-      if (!empty($topicsTree)) {
-          renderParentOptions($topicsTree);
-      }
-      echo "</select><br/>";
-      echo "<input type='submit' name='new_topic' value='Añadir Tema/Recurso' />";
-      echo "</form>";
-      
+
+        // Si hay error, lo mostramos
+        if ($error) {
+            echo "<p class='error'>" . $error . "</p>";
+        }
+
+        // >>> NEW OR MODIFIED CODE <<<
+        // 1) If user clicked "Añadir Nuevo Tema/Recurso" -> show creation form
+        if (isset($_GET['show_new_topic'])) {
+            echo "<h3>Añadir Nuevo Tema/Recurso</h3>";
+            echo "<form method='post' action='?action=edit_project&id=" . $project_id . "'>";
+            echo "<label>Título:</label>";
+            echo "<input type='text' name='topic_title' required /><br/>";
+            echo "<label>Tipo:</label>";
+            echo "<select name='topic_type'>
+                    <option value='text'>Texto</option>
+                    <option value='task'>Tarea</option>
+                    <option value='interactive'>Actividad Interactiva</option>
+                  </select><br/>";
+            echo "<label>Contenido:</label>";
+            echo "<textarea name='topic_content' class='jocarsa-lightslateblue'></textarea><br/>";
+            echo "<label>Padre:</label>";
+            echo "<select name='parent_id'>
+                    <option value='0'>Ninguno</option>";
+            if (!empty($topicsTree)) {
+                renderParentOptions($topicsTree);
+            }
+            echo "</select><br/>";
+            echo "<input type='submit' name='new_topic' value='Crear Tema' />";
+            echo "</form>";
+
+        // 2) If user clicked “Edit” for an existing topic
+        } elseif (isset($_GET['edit_topic']) && $selected_topic) {
+            echo "<h3>Editar Tema/Recurso</h3>";
+            echo "<form method='post' action='?action=edit_project&id=" . $project_id . "&topic_id=" . $selected_topic['id'] . "'>";
+            echo "<input type='hidden' name='topic_id' value='" . $selected_topic['id'] . "' />";
+            echo "<label>Título:</label>";
+            echo "<input type='text' name='topic_title' required value='" 
+                 . htmlspecialchars($selected_topic['title']) . "'/><br/>";
+            echo "<label>Tipo:</label>";
+            echo "<select name='topic_type'>";
+            $types = ['text'=>'Texto','task'=>'Tarea','interactive'=>'Actividad Interactiva'];
+            foreach ($types as $val => $label) {
+                $selected = ($selected_topic['type'] == $val) ? "selected" : "";
+                echo "<option value='$val' $selected>$label</option>";
+            }
+            echo "</select><br/>";
+            echo "<label>Contenido:</label>";
+            echo "<textarea name='topic_content' class='jocarsa-lightslateblue'>"
+                 . htmlspecialchars($selected_topic['content']) . "</textarea><br/>";
+            echo "<input type='submit' name='update_topic' value='Guardar Cambios' />";
+            echo "</form>";
+
+        // 3) Otherwise, show the selected topic details if any
+        } elseif ($selected_topic) {
+            echo "<h3>Contenido del Tema</h3>";
+            echo "<p><strong>Título:</strong> " . htmlspecialchars($selected_topic['title']) . "</p>";
+            echo "<p><strong>Tipo:</strong> " . htmlspecialchars($selected_topic['type']) . "</p>";
+            echo "<p><strong>Contenido:</strong><br/>" . nl2br($selected_topic['content']) . "</p>";
+            echo "<p>
+                    <a class='button' 
+                       href='?action=edit_project&id=" . $project_id . "&topic_id=" . $selected_topic['id'] . "&edit_topic=1'>
+                       Editar Este Tema
+                    </a>
+                  </p>";
+            echo "<p>
+                    <a class='delete-link' 
+                       href='?action=delete_topic&id=" . $selected_topic['id'] 
+                       . "&project_id=" . $project_id 
+                       . "' onclick='return confirm(\"¿Está seguro de eliminar este tema?\")'>
+                        Eliminar Tema
+                    </a>
+                  </p>";
+        } else {
+            // If no topic is selected and no new/edit forms are shown
+            echo "<p>Selecciona un tema en el panel de la izquierda para ver o editar su contenido, 
+                  o haz clic en <strong>Añadir Nuevo Tema/Recurso</strong> para crear uno nuevo.</p>";
+        }
+        // >>> END NEW OR MODIFIED CODE <<<
+
       echo "</div>"; // pane-right
-    echo "</div>"; // two-pane
+    echo "</div>";   // two-pane
+
+    // For your custom CSS/JS
     echo '
     	<link rel="stylesheet" href="https://jocarsa.github.io/jocarsa-lightslateblue/jocarsa%20%7C%20lightslateblue.css">
 <script src="https://jocarsa.github.io/jocarsa-lightslateblue/jocarsa%20%7C%20lightslateblue.js"></script>
@@ -569,7 +648,7 @@ if ($action == 'export_scorm') {
         $resources .= "</resource>\n";
     }
 
-    // imsmanifest.xml (string concatenation)
+    // imsmanifest.xml
     $manifestXML = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
         . '<manifest identifier="MANIFEST_' . $project['id'] . '" version="1.2" '
         . 'xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" '
@@ -588,7 +667,7 @@ if ($action == 'export_scorm') {
         . '</resources>' . "\n"
         . '</manifest>';
 
-    // SCORM API JS (no heredocs)
+    // SCORM API JS (minimal)
     $scormApiJS = 
 "// Minimal SCORM 1.2 API Example\n"
 . "var g_api = null;\n"
@@ -651,52 +730,26 @@ if ($action == 'export_scorm') {
 . "  }\n"
 . "}\n";
 
-    // Linen style for SCORM (plain string)
+    // Basic style
     $styleCSS = 
 "@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');\n"
-. "\n"
-. "/* =======================================\n"
-. "   CSS Variables (Color Palette)\n"
-. "   ======================================= */\n"
 . ":root {\n"
 . "  --header-bg: #283593;\n"
 . "  --header-text: #ffffff;\n"
-. "  --body-bg: none;\n"
-. "  --container-bg: #ffffff;\n"
 . "  --text-color: #212121;\n"
-. "  --accent-color: #009688;\n"
-. "  --accent-hover: #00796B;\n"
-. "  --danger-color: #E74C3C;\n"
-. "  --border-color: #ddd;\n"
-. "  --shadow-color: rgba(0,0,0,0.1);\n"
-. "\n"
-. "  --transition-speed: 0.3s;\n"
-. "  --font-family: 'Ubuntu', 'Segoe UI', Tahoma, sans-serif;\n"
-. "\n"
-. "  /* Buttons */\n"
-. "  --button-bg: var(--accent-color);\n"
-. "  --button-hover: var(--accent-hover);\n"
-. "  --button-text: #ffffff;\n"
 . "}\n"
-. "\n"
-. "/* Basic Reset, etc. */\n"
-. "html, body {\n"
-. "  background-color: var(--body-bg);\n"
-. "  color: var(--text-color);\n"
-. "  font-family: var(--font-family);\n"
-. "  font-size: 16px;\n"
-. "  line-height: 1.4;\n"
-. "  margin: 0;\n"
-. "  padding: 0;\n"
-. "  height: 100%;\n"
-. "  width: 100%;\n"
+. "body {\n"
+. "  font-family: 'Ubuntu', sans-serif;\n"
+. "  margin: 0; padding: 20px;\n"
+. "  border-top: 15px solid #782f40;\n"
 . "}\n"
-. "body{padding:20px;border-top:15px solid #782f40}\n"
-. ".container{padding-top:20px;}\n"
-. "\n"
-. "/* ...More CSS, same as your style.css... */\n";
+. "header {\n"
+. "  background: var(--header-bg);\n"
+. "  color: var(--header-text);\n"
+. "  padding: 15px;\n"
+. "}\n";
 
-    // Crear el ZIP
+    // Crear ZIP
     $zip = new ZipArchive();
     $zipFilename = tempnam(sys_get_temp_dir(), 'scorm_') . '.zip';
     if ($zip->open($zipFilename, ZipArchive::CREATE) !== TRUE) {
@@ -718,7 +771,6 @@ if ($action == 'export_scorm') {
         $contentSafe = nl2br($topic['content']);
         $topicId     = (int)$topic['id'];
 
-        // Build the HTML with string concatenation
         $htmlContent = ""
             . "<html>\n"
             . "<head>\n"
@@ -754,7 +806,7 @@ if ($action == 'export_scorm') {
 
     $zip->close();
     
-    // Forzar la descarga
+    // Forzar descarga
     header('Content-Type: application/zip');
     header('Content-disposition: attachment; filename=project_' . $project['id'] . '_scorm.zip');
     header('Content-Length: ' . filesize($zipFilename));
