@@ -809,7 +809,6 @@ if ($action == 'export_scorm') {
             . "<body>\n"
             . "  <header>" . $titleSafe . "</header>\n"
             . "  <div class='container'>\n"
-            . "    <h2>" . $titleSafe . "</h2>\n"
             . "    <div>" . $contentSafe . "</div>\n"
             . "  </div>\n"
             . "</body>\n"
@@ -821,13 +820,18 @@ if ($action == 'export_scorm') {
 
     $zip->close();
 
-    // Forzar descarga
+    // Forzar descarga con nombre de archivo actualizado
+    $timestamp = date("Y-m-d-H-i-s");
+    $projectName = str_replace(' ', '_', $project['title']);
+    $downloadFilename = $projectName . '_' . $timestamp . '.zip';
+
     header('Content-Type: application/zip');
-    header('Content-disposition: attachment; filename=project_' . $project['id'] . '_scorm.zip');
+    header('Content-disposition: attachment; filename=' . $downloadFilename);
     header('Content-Length: ' . filesize($zipFilename));
     readfile($zipFilename);
     unlink($zipFilename);
     exit;
 }
+
 ?>
 
