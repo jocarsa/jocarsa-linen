@@ -147,6 +147,7 @@ tr:hover td {
    ======================================= */
 form input[type='text'],
 form input[type='password'],
+form input[type='color'], /* Added for color picker */
 form select,
 form textarea {
     width: 100%;
@@ -156,6 +157,16 @@ form textarea {
     border-radius: 4px;
     font-family: var(--font-family);
     font-size: 14px;
+}
+
+/* Color picker specific styles */
+form input[type='color'] {
+    padding: 5px;
+    height: auto;
+    width: 50px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
 }
 
 /* Buttons */
@@ -252,28 +263,28 @@ form input[type='submit']:hover,
         font-size: 20px;
         padding: 15px;
     }
-    
+
     .container {
         margin: 10px auto;
         padding: 15px;
     }
-    
+
     .navbar a {
         margin-right: 10px;
     }
-    
+
     .two-pane {
         flex-direction: column;
         min-height: auto;
         height: auto;
     }
-    
+
     .pane-left, .pane-right {
         max-width: 100%;
         border: none;
         padding: 0;
     }
-    
+
     .pane-left {
         margin-bottom: 20px;
     }
