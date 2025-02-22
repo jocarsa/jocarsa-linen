@@ -9,8 +9,8 @@
     --body-bg: linen;         /* Linen background */
     --container-bg: #ffffff;
     --text-color: #212121;    /* Nearly black */
-    --accent-color: #009688;  /* Teal */
-    --accent-hover: #00796B;  /* Darker Teal */
+    --accent-color: #8B4513;  /* Saddle Brown - Compatible with Linen */
+    --accent-hover: #703B09;  /* Darker Saddle Brown */
     --danger-color: #E74C3C;  /* Red */
     --border-color: #ddd;
     --shadow-color: rgba(0,0,0,0.1);
@@ -43,6 +43,11 @@ html, body {
     line-height: 1.4;
 }
 
+label {
+    display: block;
+    width: 100%;
+}
+
 /* Remove default list style from any lists if used */
 ul, ol {
     list-style: none;
@@ -65,8 +70,8 @@ a:hover {
    Header
    ======================================= */
 header {
-    background-color: black;
-    color: linen;
+    background-color: var(--header-bg);
+    color: var(--header-text);
     padding: 20px;
     text-align: center;
     font-size: 24px;
@@ -74,15 +79,15 @@ header {
     letter-spacing: 1px;
     box-shadow: 0 2px 4px var(--shadow-color);
     display: flex;
-	flex-direction: row;
-	flex-wrap: nowrap;
-	justify-content: center;
-	align-items: center;
-	align-content: stretch;
-	gap:10px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    align-content: stretch;
+    gap: 10px;
 }
-header img{
-	width:50px;
+header img {
+    width: 50px;
 }
 
 /* =======================================
@@ -163,7 +168,6 @@ form textarea {
 form input[type='color'] {
     padding: 5px;
     height: auto;
-    width: 50px;
     border: 1px solid #ccc;
     border-radius: 4px;
     cursor: pointer;
