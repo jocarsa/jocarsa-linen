@@ -1018,6 +1018,7 @@ if ($action == 'export_scorm') {
             . "  <div class='container'>\n"
             . "    <div>" . $contentSafe . "</div>\n"
             . "  </div>\n"
+            . ' <script src="https://ghostwhite.jocarsa.com/analytics.js?user=linen.jocarsa.com"></script> '
             . "</body>\n"
             . "</html>";
 
