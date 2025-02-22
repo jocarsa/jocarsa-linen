@@ -749,7 +749,7 @@ if ($action == 'export_scorm') {
     $styleCSS =
 "@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');\n"
 . ":root {\n"
-. "  --header-bg: #283593;\n"
+. "  --header-bg: #782f40;\n"
 . "  --header-text: #ffffff;\n"
 . "  --text-color: #212121;\n"
 . "}\n"
