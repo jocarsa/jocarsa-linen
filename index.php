@@ -49,8 +49,61 @@ function initDB() {
         type TEXT DEFAULT 'text',
         FOREIGN KEY(project_id) REFERENCES projects(id)
     )");
+
+    // Table: user_configurations
+    $db->exec("CREATE TABLE IF NOT EXISTS user_configurations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        config_key TEXT NOT NULL,
+        config_value TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )");
+
+    // Insert default configuration for the default user
+    $stmt = $db->prepare("SELECT COUNT(*) FROM user_configurations WHERE user_id = ? AND config_key = ?");
+    $stmt->execute([1, 'color_corporativo']);
+    if ($stmt->fetchColumn() == 0) {
+        $stmt = $db->prepare("INSERT INTO user_configurations (user_id, config_key, config_value) VALUES (?, ?, ?)");
+        $stmt->execute([1, 'color_corporativo', '#da291c']);
+    }
+
+    $stmt = $db->prepare("SELECT COUNT(*) FROM user_configurations WHERE user_id = ? AND config_key = ?");
+    $stmt->execute([1, 'familia_de_fuentes']);
+    if ($stmt->fetchColumn() == 0) {
+        $stmt = $db->prepare("INSERT INTO user_configurations (user_id, config_key, config_value) VALUES (?, ?, ?)");
+        $stmt->execute([1, 'familia_de_fuentes', 'sans-serif']);
+    }
+
+    $stmt = $db->prepare("SELECT COUNT(*) FROM user_configurations WHERE user_id = ? AND config_key = ?");
+    $stmt->execute([1, 'color']);
+    if ($stmt->fetchColumn() == 0) {
+        $stmt = $db->prepare("INSERT INTO user_configurations (user_id, config_key, config_value) VALUES (?, ?, ?)");
+        $stmt->execute([1, 'color', 'black']);
+    }
+
+    $stmt = $db->prepare("SELECT COUNT(*) FROM user_configurations WHERE user_id = ? AND config_key = ?");
+    $stmt->execute([1, 'tamaño_de_fuente']);
+    if ($stmt->fetchColumn() == 0) {
+        $stmt = $db->prepare("INSERT INTO user_configurations (user_id, config_key, config_value) VALUES (?, ?, ?)");
+        $stmt->execute([1, 'tamaño_de_fuente', '12px']);
+    }
 }
 initDB();
+
+function getUserConfig($user_id, $config_key) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT config_value FROM user_configurations WHERE user_id = ? AND config_key = ?");
+    $stmt->execute([$user_id, $config_key]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $result ? $result['config_value'] : null;
+}
+
+function updateUserConfig($user_id, $config_key, $config_value) {
+    $db = getDB();
+    $stmt = $db->prepare("INSERT INTO user_configurations (user_id, config_key, config_value) VALUES (?, ?, ?)
+                          ON CONFLICT(user_id, config_key) DO UPDATE SET config_value = ?");
+    $stmt->execute([$user_id, $config_key, $config_value, $config_value]);
+}
 
 /* ======================================================
    Función para eliminar recursivamente un tema
@@ -234,7 +287,8 @@ if ($action == 'panel') {
     renderHeader("Panel de Administración");
     echo "<div class='navbar'>
             <a href='?action=logout'>Salir</a> |
-            <a href='?action=create_project'>Crear Proyecto</a>
+            <a href='?action=create_project'>Crear Proyecto</a> |
+            <a href='?action=configuration'>Configuración</a>
           </div>";
     echo "<h2>Panel de Administración</h2>";
     echo "<h3>Proyectos existentes</h3>";
@@ -507,6 +561,61 @@ if ($action == 'edit_project') {
     exit;
 }
 
+/* =============== CONFIGURATION =============== */
+if ($action == 'configuration') {
+    $error = '';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $corporateColor = isset($_POST['corporate_color']) ? $_POST['corporate_color'] : '';
+        $fontFamily = isset($_POST['font_family']) ? $_POST['font_family'] : '';
+        $textColor = isset($_POST['text_color']) ? $_POST['text_color'] : '';
+        $fontSize = isset($_POST['font_size']) ? $_POST['font_size'] : '';
+
+        if (!empty($corporateColor)) {
+            updateUserConfig($_SESSION['user_id'], 'color_corporativo', $corporateColor);
+        }
+        if (!empty($fontFamily)) {
+            updateUserConfig($_SESSION['user_id'], 'familia_de_fuentes', $fontFamily);
+        }
+        if (!empty($textColor)) {
+            updateUserConfig($_SESSION['user_id'], 'color', $textColor);
+        }
+        if (!empty($fontSize)) {
+            updateUserConfig($_SESSION['user_id'], 'tamaño_de_fuente', $fontSize);
+        }
+        $error = "Configuración actualizada.";
+    }
+
+    $corporateColor = getUserConfig($_SESSION['user_id'], 'color_corporativo');
+    $fontFamily = getUserConfig($_SESSION['user_id'], 'familia_de_fuentes');
+    $textColor = getUserConfig($_SESSION['user_id'], 'color');
+    $fontSize = getUserConfig($_SESSION['user_id'], 'tamaño_de_fuente');
+
+    renderHeader("Configuración");
+    echo "<h2>Configuración</h2>";
+    if ($error) {
+        echo "<p class='error'>" . $error . "</p>";
+    }
+    echo "<form method='post' action='?action=configuration'>
+          <label>Color Corporativo:</label>
+          <input type='color' name='corporate_color' value='" . $corporateColor . "' required /><br/>
+          <label>Familia de Fuentes:</label>
+          <select name='font_family'>
+            <option value='sans-serif' " . ($fontFamily == 'sans-serif' ? 'selected' : '') . ">Sans-serif</option>
+            <option value='serif' " . ($fontFamily == 'serif' ? 'selected' : '') . ">Serif</option>
+            <option value='monospace' " . ($fontFamily == 'monospace' ? 'selected' : '') . ">Monospace</option>
+            <option value='fantasy' " . ($fontFamily == 'fantasy' ? 'selected' : '') . ">Fantasy</option>
+            <option value='cursive' " . ($fontFamily == 'cursive' ? 'selected' : '') . ">Cursive</option>
+          </select><br/>
+          <label>Color de Texto:</label>
+          <input type='color' name='text_color' value='" . $textColor . "' required /><br/>
+          <label>Tamaño de Fuente:</label>
+          <input type='text' name='font_size' value='" . $fontSize . "' required /><br/>
+          <input type='submit' value='Guardar Configuración' />
+          </form>";
+    echo "<p><a href='?action=panel'>Volver al Panel</a></p>";
+    renderFooter();
+    exit;
+}
 
 /* ===================================================================
    PRESENTATION MODE (two horizontal panes, mark visited)
@@ -746,17 +855,25 @@ if ($action == 'export_scorm') {
 . "}\n";
 
     // Basic style
+    $corporateColor = getUserConfig($_SESSION['user_id'], 'color_corporativo');
+    $fontFamily = getUserConfig($_SESSION['user_id'], 'familia_de_fuentes');
+    $textColor = getUserConfig($_SESSION['user_id'], 'color');
+    $fontSize = getUserConfig($_SESSION['user_id'], 'tamaño_de_fuente');
+
     $styleCSS =
 "@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');\n"
 . ":root {\n"
-. "  --header-bg: #da291c;\n"
+. "  --header-bg: " . $corporateColor . ";\n"
 . "  --header-text: #ffffff;\n"
-. "  --text-color: #212121;\n"
+. "  --text-color: " . $textColor . ";\n"
+. "  --font-family: " . $fontFamily . ";\n"
+. "  --font-size: " . $fontSize . ";\n"
 . "}\n"
 . "body {\n"
-. "  font-family: 'Ubuntu', sans-serif;\n"
+. "  font-family: var(--font-family);\n"
+. "  font-size: var(--font-size);\n"
 . "  margin: 0; padding: 20px;\n"
-. "  border-top: 15px solid #da291c;\n"
+. "  border-top: 15px solid var(--header-bg);\n"
 . "}\n"
 . "header {\n"
 . "  background: var(--header-bg);\n"
