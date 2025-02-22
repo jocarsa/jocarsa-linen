@@ -327,14 +327,15 @@ if ($action == 'edit_project') {
         $title      = isset($_POST['topic_title'])   ? $_POST['topic_title']   : '';
         $content    = isset($_POST['topic_content']) ? $_POST['topic_content'] : '';
         $type       = isset($_POST['topic_type'])    ? $_POST['topic_type']    : 'text';
+        $parent_id  = isset($_POST['parent_id'])    ? $_POST['parent_id']    : 0; // Allow changing parent
 
         if (trim($title) == '') {
             $error = "El título del tema es obligatorio.";
         } else {
             $stmt = $db->prepare("UPDATE topics
-                                  SET title = ?, content = ?, type = ?
+                                  SET title = ?, content = ?, type = ?, parent_id = ?
                                   WHERE id = ? AND project_id = ?");
-            $stmt->execute([$title, $content, $type, $topic_id, $project_id]);
+            $stmt->execute([$title, $content, $type, $parent_id, $topic_id, $project_id]);
             header("Location: ?action=edit_project&id=" . $project_id . "&topic_id=" . $topic_id);
             exit;
         }
@@ -457,6 +458,13 @@ if ($action == 'edit_project') {
             echo "<label>Contenido:</label>";
             echo "<textarea name='topic_content' class='jocarsa-lightslateblue'>"
                  . htmlspecialchars($selected_topic['content']) . "</textarea><br/>";
+            echo "<label>Padre:</label>";
+            echo "<select name='parent_id'>
+                    <option value='0'>Ninguno</option>";
+            if (!empty($topicsTree)) {
+                renderParentOptions($topicsTree, 0, $selected_topic['id']);
+            }
+            echo "</select><br/>";
             echo "<input type='submit' name='update_topic' value='Guardar Cambios' />";
             echo "</form>";
 
@@ -498,6 +506,7 @@ if ($action == 'edit_project') {
     renderFooter();
     exit;
 }
+
 
 /* ===================================================================
    PRESENTATION MODE (two horizontal panes, mark visited)
