@@ -89,8 +89,8 @@ function renderTopicNav($tree, $project_id, $level = 0) {
         echo "<div style='margin-left:" . ($level * 15) . "px;'>";
         echo "<a href='?action=edit_project&id=" . $project_id . "&topic_id=" . $node['id'] . "'>"
              . htmlspecialchars($node['title']) . "</a>";
-        echo " <a class='delete-link' href='?action=delete_topic&id=" . $node['id'] 
-             . "&project_id=" . $project_id 
+        echo " <a class='delete-link' href='?action=delete_topic&id=" . $node['id']
+             . "&project_id=" . $project_id
              . "' onclick='return confirm(\"¿Está seguro de eliminar este tema?\")'>[Eliminar]</a>";
         echo "</div>";
         if (!empty($node['children'])) {
@@ -103,8 +103,8 @@ function renderTopicNav($tree, $project_id, $level = 0) {
 function renderParentOptions($tree, $level = 0) {
     foreach ($tree as $node) {
         echo "<option value='" . $node['id'] . "'>"
-             . str_repeat("--", $level) . " " 
-             . htmlspecialchars($node['title']) 
+             . str_repeat("--", $level) . " "
+             . htmlspecialchars($node['title'])
              . "</option>";
         if (!empty($node['children'])) {
             renderParentOptions($node['children'], $level + 1);
@@ -233,7 +233,7 @@ if ($action == 'panel') {
 
     renderHeader("Panel de Administración");
     echo "<div class='navbar'>
-            <a href='?action=logout'>Salir</a> | 
+            <a href='?action=logout'>Salir</a> |
             <a href='?action=create_project'>Crear Proyecto</a>
           </div>";
     echo "<h2>Panel de Administración</h2>";
@@ -251,11 +251,11 @@ if ($action == 'panel') {
                 <td>" . htmlspecialchars($proj['title']) . "</td>
                 <td>" . htmlspecialchars($proj['description']) . "</td>
                 <td>
-                  <a href='?action=edit_project&id=" . $proj['id'] . "'>Editar</a> | 
-                  <a href='?action=export_scorm&id=" . $proj['id'] . "'>Exportar SCORM</a> | 
-                  <a href='?action=presentation&id=" . $proj['id'] . "' target='_blank'>Presentación</a> | 
-                  <a class='delete-link' 
-                     href='?action=delete_project&id=" . $proj['id'] . "' 
+                  <a href='?action=edit_project&id=" . $proj['id'] . "'>Editar</a> |
+                  <a href='?action=export_scorm&id=" . $proj['id'] . "'>Exportar SCORM</a> |
+                  <a href='?action=presentation&id=" . $proj['id'] . "' target='_blank'>Presentación</a> |
+                  <a class='delete-link'
+                     href='?action=delete_project&id=" . $proj['id'] . "'
                      onclick='return confirm(\"¿Está seguro de eliminar este proyecto?\")'>Eliminar</a>
                 </td>
               </tr>";
@@ -316,7 +316,7 @@ if ($action == 'edit_project') {
         renderFooter();
         exit;
     }
-    
+
     // >>> NEW OR MODIFIED CODE <<<
     // Handling the creation AND editing of topics in one place:
     $error = '';
@@ -331,7 +331,7 @@ if ($action == 'edit_project') {
         if (trim($title) == '') {
             $error = "El título del tema es obligatorio.";
         } else {
-            $stmt = $db->prepare("UPDATE topics 
+            $stmt = $db->prepare("UPDATE topics
                                   SET title = ?, content = ?, type = ?
                                   WHERE id = ? AND project_id = ?");
             $stmt->execute([$title, $content, $type, $topic_id, $project_id]);
@@ -363,7 +363,7 @@ if ($action == 'edit_project') {
     $stmt->execute([$project_id]);
     $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $topicsTree = buildTree($topics);
-    
+
     // Comprobar si hay un tema seleccionado
     $selected_topic = null;
     if (isset($_GET['topic_id'])) {
@@ -372,12 +372,12 @@ if ($action == 'edit_project') {
         $stmt->execute([$selected_topic_id, $project_id]);
         $selected_topic = $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    
+
     // Render
     renderHeader("Editar Proyecto");
     echo "<h2>Editar Proyecto: " . htmlspecialchars($project['title']) . "</h2>";
     echo "<p><a href='?action=panel'>Volver al Panel</a></p>";
-    
+
     echo "<div class='two-pane'>";
 
       // ================================
@@ -395,14 +395,14 @@ if ($action == 'edit_project') {
         // Button to show "Crear Nuevo Tema/Recurso" form in the right pane
         // We'll pass a GET parameter 'show_new_topic=1' to display that form
         echo "<p style='margin-top:20px;'>
-                <a class='button' 
+                <a class='button'
                    href='?action=edit_project&id=" . $project_id . "&show_new_topic=1'>
                    Añadir Nuevo Tema/Recurso
                 </a>
               </p>";
         // >>> END NEW OR MODIFIED CODE <<<
       echo "</div>";
-      
+
       // =================================
       // Panel derecho (contenido)
       // =================================
@@ -444,7 +444,7 @@ if ($action == 'edit_project') {
             echo "<form method='post' action='?action=edit_project&id=" . $project_id . "&topic_id=" . $selected_topic['id'] . "'>";
             echo "<input type='hidden' name='topic_id' value='" . $selected_topic['id'] . "' />";
             echo "<label>Título:</label>";
-            echo "<input type='text' name='topic_title' required value='" 
+            echo "<input type='text' name='topic_title' required value='"
                  . htmlspecialchars($selected_topic['title']) . "'/><br/>";
             echo "<label>Tipo:</label>";
             echo "<select name='topic_type'>";
@@ -467,22 +467,22 @@ if ($action == 'edit_project') {
             echo "<p><strong>Tipo:</strong> " . htmlspecialchars($selected_topic['type']) . "</p>";
             echo "<p><strong>Contenido:</strong><br/>" . nl2br($selected_topic['content']) . "</p>";
             echo "<p>
-                    <a class='button' 
+                    <a class='button'
                        href='?action=edit_project&id=" . $project_id . "&topic_id=" . $selected_topic['id'] . "&edit_topic=1'>
                        Editar Este Tema
                     </a>
                   </p>";
             echo "<p>
-                    <a class='delete-link' 
-                       href='?action=delete_topic&id=" . $selected_topic['id'] 
-                       . "&project_id=" . $project_id 
+                    <a class='delete-link'
+                       href='?action=delete_topic&id=" . $selected_topic['id']
+                       . "&project_id=" . $project_id
                        . "' onclick='return confirm(\"¿Está seguro de eliminar este tema?\")'>
                         Eliminar Tema
                     </a>
                   </p>";
         } else {
             // If no topic is selected and no new/edit forms are shown
-            echo "<p>Selecciona un tema en el panel de la izquierda para ver o editar su contenido, 
+            echo "<p>Selecciona un tema en el panel de la izquierda para ver o editar su contenido,
                   o haz clic en <strong>Añadir Nuevo Tema/Recurso</strong> para crear uno nuevo.</p>";
         }
         // >>> END NEW OR MODIFIED CODE <<<
@@ -555,8 +555,8 @@ if ($action == 'presentation') {
             $title = htmlspecialchars($node['title']);
             $visitedMark = in_array($node['id'], $visited) ? " (visto)" : "";
             echo "<div style='margin-left:" . $margin . "px;'>";
-            echo "<a href='?action=presentation&id=" . $project_id 
-                 . "&topic_id=" . $node['id'] . "'>" 
+            echo "<a href='?action=presentation&id=" . $project_id
+                 . "&topic_id=" . $node['id'] . "'>"
                  . $title . "</a> <span class='visited-mark'>" . $visitedMark . "</span>";
             echo "</div>";
             if (!empty($node['children'])) {
@@ -613,13 +613,13 @@ if ($action == 'export_scorm') {
         echo "Proyecto no encontrado o no tiene permiso para exportar.";
         exit;
     }
-    
+
     // Obtener temas
     $stmt = $db->prepare("SELECT * FROM topics WHERE project_id = ?");
     $stmt->execute([$project_id]);
     $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $topicsTree = buildTree($topics);
-    
+
     // Generar <item> recursivamente
     function generateItemsXML($topics) {
         $itemsXML = "";
@@ -642,7 +642,7 @@ if ($action == 'export_scorm') {
     foreach ($topics as $topic) {
         $identifier = "RES_" . $topic['id'];
         $href       = "topic_" . $topic['id'] . ".html";
-        $resources .= '<resource identifier="' . $identifier 
+        $resources .= '<resource identifier="' . $identifier
                    . '" type="webcontent" adlcp:scormType="sco" href="' . $href . '">' . "\n";
         $resources .= '<file href="' . $href . '"/>' . "\n";
         $resources .= "</resource>\n";
@@ -668,7 +668,7 @@ if ($action == 'export_scorm') {
         . '</manifest>';
 
     // SCORM API JS (minimal)
-    $scormApiJS = 
+    $scormApiJS =
 "// Minimal SCORM 1.2 API Example\n"
 . "var g_api = null;\n"
 . "var g_isInitialized = false;\n\n"
@@ -728,10 +728,16 @@ if ($action == 'export_scorm') {
 . "    scormSetValue(\"cmi.suspend_data\", visited);\n"
 . "    scormCommit();\n"
 . "  }\n"
+. "  // Set completion status and score\n"
+. "  scormSetValue(\"cmi.core.lesson_status\", \"completed\");\n"
+. "  scormSetValue(\"cmi.core.score.raw\", \"10\");\n"
+. "  scormSetValue(\"cmi.core.score.min\", \"0\");\n"
+. "  scormSetValue(\"cmi.core.score.max\", \"10\");\n"
+. "  scormCommit();\n"
 . "}\n";
 
     // Basic style
-    $styleCSS = 
+    $styleCSS =
 "@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');\n"
 . ":root {\n"
 . "  --header-bg: #283593;\n"
@@ -805,7 +811,7 @@ if ($action == 'export_scorm') {
     }
 
     $zip->close();
-    
+
     // Forzar descarga
     header('Content-Type: application/zip');
     header('Content-disposition: attachment; filename=project_' . $project['id'] . '_scorm.zip');
