@@ -47,6 +47,7 @@ function initDB() {
         title TEXT NOT NULL,
         content TEXT,
         type TEXT DEFAULT 'text',
+        sort_order INTEGER DEFAULT 0, -- New column for sorting
         FOREIGN KEY(project_id) REFERENCES projects(id)
     )");
 
@@ -87,13 +88,6 @@ function initDB() {
         $stmt = $db->prepare("INSERT INTO user_configurations (user_id, config_key, config_value) VALUES (?, ?, ?)");
         $stmt->execute([1, 'tamaño_de_fuente', '12px']);
     }
-
-    // New Table: topic_order
-    $db->exec("CREATE TABLE IF NOT EXISTS topic_order (
-        topic_id INTEGER PRIMARY KEY,
-        order_value INTEGER NOT NULL DEFAULT 0,
-        FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE
-    )");
 }
 initDB();
 
@@ -159,20 +153,15 @@ function renderTopicNav($tree, $project_id, $level = 0) {
     }
 }
 
-// Actualizada para que el <select> de "padre" admita un valor preseleccionado y evite seleccionar el propio tema
-function renderParentOptions($tree, $level = 0, $selectedParent = null, $currentTopicId = null) {
+// Opciones para el <select> de "padre"
+function renderParentOptions($tree, $level = 0) {
     foreach ($tree as $node) {
-        // Evitar que un tema se convierta en su propio padre
-        if ($currentTopicId !== null && $node['id'] == $currentTopicId) {
-            continue;
-        }
-        $selected = ($selectedParent !== null && $node['id'] == $selectedParent) ? "selected" : "";
-        echo "<option value='" . $node['id'] . "' $selected>"
-             . str_repeat("--", $level) . " " 
+        echo "<option value='" . $node['id'] . "'>"
+             . str_repeat("--", $level) . " "
              . htmlspecialchars($node['title'])
              . "</option>";
         if (!empty($node['children'])) {
-            renderParentOptions($node['children'], $level + 1, $selectedParent, $currentTopicId);
+            renderParentOptions($node['children'], $level + 1);
         }
     }
 }
@@ -197,7 +186,6 @@ function renderHeader($pageTitle) {
 
 function renderFooter() {
     echo "</div>
-    <script src='https://ghostwhite.jocarsa.com/analytics.js?user=linen.jocarsa.com'></script>
 </body>
 </html>";
 }
@@ -290,117 +278,7 @@ if ($action == 'delete_topic') {
     exit;
 }
 
-/* =============== DUPLICATE PROJECT =============== */
-if ($action == 'duplicate_project') {
-    $db = getDB();
-    $project_id = isset($_GET['id']) ? $_GET['id'] : '';
-    if (!$project_id) {
-        header("Location: ?action=panel");
-        exit;
-    }
-    // Verificar propiedad
-    $stmt = $db->prepare("SELECT * FROM projects WHERE id = ? AND user_id = ?");
-    $stmt->execute([$project_id, $_SESSION['user_id']]);
-    $project = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$project) {
-        header("Location: ?action=panel");
-        exit;
-    }
-    // Duplicar el proyecto (agregando " - copia" al título)
-    $newTitle = $project['title'] . " - copia";
-    $stmt = $db->prepare("INSERT INTO projects (user_id, title, description) VALUES (?, ?, ?)");
-    $stmt->execute([$_SESSION['user_id'], $newTitle, $project['description']]);
-    $newProjectId = $db->lastInsertId();
-    
-    // Duplicar topics de forma que se conserve la estructura (dos pasadas)
-    $topicMapping = array(); // mapea el id antiguo => nuevo id
-    $originalParents = array(); // almacena el id de padre original por cada nuevo tema
-    $stmtTopics = $db->prepare("SELECT * FROM topics WHERE project_id = ? ORDER BY id ASC");
-    $stmtTopics->execute([$project_id]);
-    $topics = $stmtTopics->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($topics as $topic) {
-        // Insertar cada tema con project_id del nuevo proyecto y temporalmente parent_id = 0
-        $stmtInsert = $db->prepare("INSERT INTO topics (project_id, parent_id, title, content, type) VALUES (?, ?, ?, ?, ?)");
-        $stmtInsert->execute([$newProjectId, 0, $topic['title'], $topic['content'], $topic['type']]);
-        $newTopicId = $db->lastInsertId();
-        $topicMapping[$topic['id']] = $newTopicId;
-        $originalParents[$newTopicId] = $topic['parent_id'];
-    }
-    // Actualizar el parent_id de cada tema duplicado
-    foreach ($topicMapping as $oldTopicId => $newTopicId) {
-        $oldParentId = $originalParents[$newTopicId];
-        if ($oldParentId != 0 && isset($topicMapping[$oldParentId])) {
-            $newParentId = $topicMapping[$oldParentId];
-            $stmtUpdate = $db->prepare("UPDATE topics SET parent_id = ? WHERE id = ?");
-            $stmtUpdate->execute([$newParentId, $newTopicId]);
-        }
-    }
-    
-    // Duplicar la información de topic_order
-    $stmtOrderSelect = $db->prepare("SELECT order_value FROM topic_order WHERE topic_id = ?");
-    $stmtOrderInsert = $db->prepare("INSERT INTO topic_order (topic_id, order_value) VALUES (?, ?)");
-    foreach ($topicMapping as $oldTopicId => $newTopicId) {
-        $stmtOrderSelect->execute([$oldTopicId]);
-        $orderData = $stmtOrderSelect->fetch(PDO::FETCH_ASSOC);
-        if ($orderData) {
-            $stmtOrderInsert->execute([$newTopicId, $orderData['order_value']]);
-        }
-    }
-    
-    // Redirigir al nuevo proyecto duplicado (por ejemplo, al modo de edición)
-    header("Location: ?action=edit_project&id=" . $newProjectId);
-    exit;
-}
-
-/* =============== EDIT PROJECT INFO (Title & Description) =============== */
-if ($action == 'edit_project_info') {
-    $db = getDB();
-    $project_id = isset($_GET['id']) ? $_GET['id'] : '';
-    if (!$project_id) {
-        header("Location: ?action=panel");
-        exit;
-    }
-    // Verificar propiedad
-    $stmt = $db->prepare("SELECT * FROM projects WHERE id = ? AND user_id = ?");
-    $stmt->execute([$project_id, $_SESSION['user_id']]);
-    $project = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$project) {
-        renderHeader("Error");
-        echo "<p class='error'>Proyecto no encontrado o no autorizado.</p>";
-        renderFooter();
-        exit;
-    }
-    $error = "";
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $title = isset($_POST['title']) ? $_POST['title'] : '';
-        $description = isset($_POST['description']) ? $_POST['description'] : '';
-        if (trim($title) == '') {
-            $error = "El título es obligatorio.";
-        } else {
-            $stmt = $db->prepare("UPDATE projects SET title = ?, description = ? WHERE id = ?");
-            $stmt->execute([$title, $description, $project_id]);
-            header("Location: ?action=panel");
-            exit;
-        }
-    }
-    renderHeader("Editar Información del Proyecto");
-    echo "<h2>Editar Información del Proyecto</h2>";
-    if ($error) {
-        echo "<p class='error'>" . $error . "</p>";
-    }
-    echo "<form method='post' action='?action=edit_project_info&id=" . $project_id . "'>";
-    echo "<label>Título:</label>";
-    echo "<input type='text' name='title' value='" . htmlspecialchars($project['title']) . "' required /><br/>";
-    echo "<label>Descripción:</label>";
-    echo "<textarea name='description'>" . htmlspecialchars($project['description']) . "</textarea><br/>";
-    echo "<input type='submit' value='Guardar Cambios' />";
-    echo "</form>";
-    echo "<p><a href='?action=panel'>Volver al Panel</a></p>";
-    renderFooter();
-    exit;
-}
-
-/* =============== PANEL (ADMIN PANEL estilo WordPress) =============== */
+/* =============== PANEL =============== */
 if ($action == 'panel') {
     $db = getDB();
     $stmt = $db->prepare("SELECT * FROM projects WHERE user_id = ? ORDER BY created_at DESC");
@@ -408,47 +286,37 @@ if ($action == 'panel') {
     $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     renderHeader("Panel de Administración");
-    // Two-pane layout: Left navigation and Right main pane.
-    echo "<div class='two-pane'>";
-      // Left Navigation
-      echo "<div class='pane-left'>";
-        echo "<nav>";
-          echo "<ul>";
-            echo "<li><a href='?action=logout'>Salir</a></li>";
-            echo "<li><a href='?action=create_project'>Crear Proyecto</a></li>";
-            echo "<li><a href='?action=configuration'>Configuración</a></li>";
-          echo "</ul>";
-        echo "</nav>";
-      echo "</div>"; // pane-left
-
-      // Right Main Pane: Table of projects with actions.
-      echo "<div class='pane-right'>";
-        echo "<h2>Panel de Administración</h2>";
-        echo "<table>
-                <tr>
-                  <th>ID</th>
-                  <th>Título</th>
-                  <th>Descripción</th>
-                  <th>Acciones</th>
-                </tr>";
-        foreach ($projects as $proj) {
-            echo "<tr>
-                    <td>" . $proj['id'] . "</td>
-                    <td>" . htmlspecialchars($proj['title']) . "</td>
-                    <td>" . htmlspecialchars($proj['description']) . "</td>
-                    <td>
-                      <a href='?action=edit_project&id=" . $proj['id'] . "'>Contenido</a>
-                      <a href='?action=edit_project_info&id=" . $proj['id'] . "'>Info</a>
-                      <a href='?action=duplicate_project&id=" . $proj['id'] . "'>Duplicar</a>
-                      <a href='?action=export_scorm&id=" . $proj['id'] . "'>SCORM</a>
-                      <a href='?action=presentation&id=" . $proj['id'] . "' target='_blank'>Presentación</a>
-                      <a class='delete-link' href='?action=delete_project&id=" . $proj['id'] . "' onclick='return confirm(\"¿Está seguro de eliminar este proyecto?\")'>Eliminar</a>
-                    </td>
-                  </tr>";
-        }
-        echo "</table>";
-      echo "</div>"; // pane-right
-    echo "</div>"; // two-pane
+    echo "<div class='navbar'>
+            <a href='?action=logout'>Salir</a> |
+            <a href='?action=create_project'>Crear Proyecto</a> |
+            <a href='?action=configuration'>Configuración</a>
+          </div>";
+    echo "<h2>Panel de Administración</h2>";
+    echo "<h3>Proyectos existentes</h3>";
+    echo "<table>
+            <tr>
+              <th>ID</th>
+              <th>Título</th>
+              <th>Descripción</th>
+              <th>Acciones</th>
+            </tr>";
+    foreach ($projects as $proj) {
+        echo "<tr>
+                <td>" . $proj['id'] . "</td>
+                <td>" . htmlspecialchars($proj['title']) . "</td>
+                <td>" . htmlspecialchars($proj['description']) . "</td>
+                <td>
+                  <a href='?action=edit_project&id=" . $proj['id'] . "'>Editar</a> |
+                  <a href='?action=export_scorm&id=" . $proj['id'] . "'>Exportar SCORM</a> |
+                  <a href='?action=presentation&id=" . $proj['id'] . "' target='_blank'>Presentación</a> |
+                  <a href='?action=duplicate_project&id=" . $proj['id'] . "'>Duplicar</a> |
+                  <a class='delete-link'
+                     href='?action=delete_project&id=" . $proj['id'] . "'
+                     onclick='return confirm(\"¿Está seguro de eliminar este proyecto?\")'>Eliminar</a>
+                </td>
+              </tr>";
+    }
+    echo "</table>";
     renderFooter();
     exit;
 }
@@ -486,7 +354,7 @@ if ($action == 'create_project') {
     exit;
 }
 
-/* =============== EDIT PROJECT (two-panel layout for topics) =============== */
+/* =============== EDIT PROJECT (two-panel layout) =============== */
 if ($action == 'edit_project') {
     $db = getDB();
     $project_id = isset($_GET['id']) ? $_GET['id'] : '';
@@ -511,12 +379,11 @@ if ($action == 'edit_project') {
 
     // 1) Update existing topic (if "edit_topic" param and form is submitted)
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_topic'])) {
-        $topic_id  = isset($_POST['topic_id']) ? $_POST['topic_id'] : '';
-        $title     = isset($_POST['topic_title']) ? $_POST['topic_title'] : '';
-        $content   = isset($_POST['topic_content']) ? $_POST['topic_content'] : '';
-        $type      = isset($_POST['topic_type']) ? $_POST['topic_type'] : 'text';
-        $parent_id = isset($_POST['parent_id']) ? $_POST['parent_id'] : 0;
-        $order     = isset($_POST['order']) ? (int)$_POST['order'] : 0;
+        $topic_id   = isset($_POST['topic_id']) ? $_POST['topic_id'] : '';
+        $title      = isset($_POST['topic_title'])   ? $_POST['topic_title']   : '';
+        $content    = isset($_POST['topic_content']) ? $_POST['topic_content'] : '';
+        $type       = isset($_POST['topic_type'])    ? $_POST['topic_type']    : 'text';
+        $parent_id  = isset($_POST['parent_id'])    ? $_POST['parent_id']    : 0; // Allow changing parent
 
         if (trim($title) == '') {
             $error = "El título del tema es obligatorio.";
@@ -525,10 +392,6 @@ if ($action == 'edit_project') {
                                   SET title = ?, content = ?, type = ?, parent_id = ?
                                   WHERE id = ? AND project_id = ?");
             $stmt->execute([$title, $content, $type, $parent_id, $topic_id, $project_id]);
-            // Update order value in topic_order table
-            $stmtOrder = $db->prepare("INSERT INTO topic_order (topic_id, order_value) VALUES (?, ?)
-                                       ON CONFLICT(topic_id) DO UPDATE SET order_value = ?");
-            $stmtOrder->execute([$topic_id, $order, $order]);
             header("Location: ?action=edit_project&id=" . $project_id . "&topic_id=" . $topic_id);
             exit;
         }
@@ -536,32 +399,24 @@ if ($action == 'edit_project') {
 
     // 2) Create new topic (if "new_topic" form is submitted)
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_topic'])) {
-        $title     = isset($_POST['topic_title']) ? $_POST['topic_title'] : '';
+        $title     = isset($_POST['topic_title'])   ? $_POST['topic_title']   : '';
         $content   = isset($_POST['topic_content']) ? $_POST['topic_content'] : '';
-        $type      = isset($_POST['topic_type']) ? $_POST['topic_type'] : 'text';
-        $parent_id = isset($_POST['parent_id']) ? $_POST['parent_id'] : 0;
-        $order     = isset($_POST['order']) ? (int)$_POST['order'] : 0;
+        $type      = isset($_POST['topic_type'])    ? $_POST['topic_type']    : 'text';
+        $parent_id = isset($_POST['parent_id'])     ? $_POST['parent_id']     : 0;
         if (trim($title) == '') {
             $error = "El título del tema es obligatorio.";
         } else {
             $stmt = $db->prepare("INSERT INTO topics (project_id, parent_id, title, content, type) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$project_id, $parent_id, $title, $content, $type]);
-            $topic_id = $db->lastInsertId();
-            // Save the order value
-            $stmtOrder = $db->prepare("INSERT INTO topic_order (topic_id, order_value) VALUES (?, ?)");
-            $stmtOrder->execute([$topic_id, $order]);
+            // After creation, redirect back
             header("Location: ?action=edit_project&id=" . $project_id);
             exit;
         }
     }
     // >>> END NEW OR MODIFIED CODE <<<
 
-    // Obtener la lista de tópicos, ordered by order_value then id
-    $stmt = $db->prepare("SELECT topics.*, IFNULL(topic_order.order_value, 0) as order_value
-                          FROM topics
-                          LEFT JOIN topic_order ON topics.id = topic_order.topic_id
-                          WHERE project_id = ?
-                          ORDER BY order_value ASC, topics.id ASC");
+    // Obtener la lista de tópicos
+    $stmt = $db->prepare("SELECT * FROM topics WHERE project_id = ? ORDER BY sort_order ASC");
     $stmt->execute([$project_id]);
     $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $topicsTree = buildTree($topics);
@@ -592,23 +447,31 @@ if ($action == 'edit_project') {
         } else {
             echo "<p>No hay temas creados.</p>";
         }
-        // Botón para mostrar el formulario de "Crear Nuevo Tema/Recurso"
+
+        // >>> NEW OR MODIFIED CODE <<<
+        // Button to show "Crear Nuevo Tema/Recurso" form in the right pane
+        // We'll pass a GET parameter 'show_new_topic=1' to display that form
         echo "<p style='margin-top:20px;'>
                 <a class='button'
                    href='?action=edit_project&id=" . $project_id . "&show_new_topic=1'>
                    Añadir Nuevo Tema/Recurso
                 </a>
               </p>";
+        // >>> END NEW OR MODIFIED CODE <<<
       echo "</div>";
 
       // =================================
       // Panel derecho (contenido)
       // =================================
       echo "<div class='pane-right'>";
+
+        // Si hay error, lo mostramos
         if ($error) {
             echo "<p class='error'>" . $error . "</p>";
         }
-        // 1) Si se muestra el formulario para crear un nuevo tema
+
+        // >>> NEW OR MODIFIED CODE <<<
+        // 1) If user clicked "Añadir Nuevo Tema/Recurso" -> show creation form
         if (isset($_GET['show_new_topic'])) {
             echo "<h3>Añadir Nuevo Tema/Recurso</h3>";
             echo "<form method='post' action='?action=edit_project&id=" . $project_id . "'>";
@@ -629,44 +492,39 @@ if ($action == 'edit_project') {
                 renderParentOptions($topicsTree);
             }
             echo "</select><br/>";
-            echo "<label>Orden:</label>";
-            echo "<input type='number' name='order' value='0' /><br/>";
             echo "<input type='submit' name='new_topic' value='Crear Tema' />";
             echo "</form>";
-        // 2) Si se edita un tema existente
+
+        // 2) If user clicked “Edit” for an existing topic
         } elseif (isset($_GET['edit_topic']) && $selected_topic) {
-            // Obtener el valor actual del orden
-            $stmtOrder = $db->prepare("SELECT order_value FROM topic_order WHERE topic_id = ?");
-            $stmtOrder->execute([$selected_topic['id']]);
-            $orderData = $stmtOrder->fetch(PDO::FETCH_ASSOC);
-            $orderValue = $orderData ? $orderData['order_value'] : 0;
             echo "<h3>Editar Tema/Recurso</h3>";
             echo "<form method='post' action='?action=edit_project&id=" . $project_id . "&topic_id=" . $selected_topic['id'] . "'>";
             echo "<input type='hidden' name='topic_id' value='" . $selected_topic['id'] . "' />";
             echo "<label>Título:</label>";
-            echo "<input type='text' name='topic_title' required value='" . htmlspecialchars($selected_topic['title']) . "'/><br/>";
+            echo "<input type='text' name='topic_title' required value='"
+                 . htmlspecialchars($selected_topic['title']) . "'/><br/>";
             echo "<label>Tipo:</label>";
             echo "<select name='topic_type'>";
             $types = ['text'=>'Texto','task'=>'Tarea','interactive'=>'Actividad Interactiva'];
             foreach ($types as $val => $label) {
-                $sel = ($selected_topic['type'] == $val) ? "selected" : "";
-                echo "<option value='$val' $sel>$label</option>";
+                $selected = ($selected_topic['type'] == $val) ? "selected" : "";
+                echo "<option value='$val' $selected>$label</option>";
             }
             echo "</select><br/>";
             echo "<label>Contenido:</label>";
-            echo "<textarea name='topic_content' class='jocarsa-lightslateblue'>" . htmlspecialchars($selected_topic['content']) . "</textarea><br/>";
+            echo "<textarea name='topic_content' class='jocarsa-lightslateblue'>"
+                 . htmlspecialchars($selected_topic['content']) . "</textarea><br/>";
             echo "<label>Padre:</label>";
             echo "<select name='parent_id'>
                     <option value='0'>Ninguno</option>";
             if (!empty($topicsTree)) {
-                renderParentOptions($topicsTree, 0, $selected_topic['parent_id'], $selected_topic['id']);
+                renderParentOptions($topicsTree, 0, $selected_topic['id']);
             }
             echo "</select><br/>";
-            echo "<label>Orden:</label>";
-            echo "<input type='number' name='order' value='" . $orderValue . "' /><br/>";
             echo "<input type='submit' name='update_topic' value='Guardar Cambios' />";
             echo "</form>";
-        // 3) Si se ha seleccionado un tema para ver su contenido
+
+        // 3) Otherwise, show the selected topic details if any
         } elseif ($selected_topic) {
             echo "<h3>Contenido del Tema</h3>";
             echo "<p><strong>Título:</strong> " . htmlspecialchars($selected_topic['title']) . "</p>";
@@ -680,22 +538,83 @@ if ($action == 'edit_project') {
                   </p>";
             echo "<p>
                     <a class='delete-link'
-                       href='?action=delete_topic&id=" . $selected_topic['id'] . "&project_id=" . $project_id . "'
-                       onclick='return confirm(\"¿Está seguro de eliminar este tema?\")'>
+                       href='?action=delete_topic&id=" . $selected_topic['id']
+                       . "&project_id=" . $project_id
+                       . "' onclick='return confirm(\"¿Está seguro de eliminar este tema?\")'>
                         Eliminar Tema
                     </a>
                   </p>";
         } else {
+            // If no topic is selected and no new/edit forms are shown
             echo "<p>Selecciona un tema en el panel de la izquierda para ver o editar su contenido,
                   o haz clic en <strong>Añadir Nuevo Tema/Recurso</strong> para crear uno nuevo.</p>";
         }
+        // >>> END NEW OR MODIFIED CODE <<<
+
       echo "</div>"; // pane-right
     echo "</div>";   // two-pane
 
+    // For your custom CSS/JS
     echo '
     	<link rel="stylesheet" href="https://jocarsa.github.io/jocarsa-lightslateblue/jocarsa%20%7C%20lightslateblue.css">
-    <script src="https://jocarsa.github.io/jocarsa-lightslateblue/jocarsa%20%7C%20lightslateblue.js"></script>
+<script src="https://jocarsa.github.io/jocarsa-lightslateblue/jocarsa%20%7C%20lightslateblue.js"></script>
     ';
+    renderFooter();
+    exit;
+}
+
+/* =============== CONFIGURATION =============== */
+if ($action == 'configuration') {
+    $error = '';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $corporateColor = isset($_POST['corporate_color']) ? $_POST['corporate_color'] : '';
+        $fontFamily = isset($_POST['font_family']) ? $_POST['font_family'] : '';
+        $textColor = isset($_POST['text_color']) ? $_POST['text_color'] : '';
+        $fontSize = isset($_POST['font_size']) ? $_POST['font_size'] : '';
+
+        if (!empty($corporateColor)) {
+            updateUserConfig($_SESSION['user_id'], 'color_corporativo', $corporateColor);
+        }
+        if (!empty($fontFamily)) {
+            updateUserConfig($_SESSION['user_id'], 'familia_de_fuentes', $fontFamily);
+        }
+        if (!empty($textColor)) {
+            updateUserConfig($_SESSION['user_id'], 'color', $textColor);
+        }
+        if (!empty($fontSize)) {
+            updateUserConfig($_SESSION['user_id'], 'tamaño_de_fuente', $fontSize);
+        }
+        $error = "Configuración actualizada.";
+    }
+
+    $corporateColor = getUserConfig($_SESSION['user_id'], 'color_corporativo');
+    $fontFamily = getUserConfig($_SESSION['user_id'], 'familia_de_fuentes');
+    $textColor = getUserConfig($_SESSION['user_id'], 'color');
+    $fontSize = getUserConfig($_SESSION['user_id'], 'tamaño_de_fuente');
+
+    renderHeader("Configuración");
+    echo "<h2>Configuración</h2>";
+    if ($error) {
+        echo "<p class='error'>" . $error . "</p>";
+    }
+    echo "<form method='post' action='?action=configuration'>
+          <label>Color Corporativo:</label>
+          <input type='color' name='corporate_color' value='" . $corporateColor . "' required /><br/>
+          <label>Familia de Fuentes:</label>
+          <select name='font_family'>
+            <option value='sans-serif' " . ($fontFamily == 'sans-serif' ? 'selected' : '') . ">Sans-serif</option>
+            <option value='serif' " . ($fontFamily == 'serif' ? 'selected' : '') . ">Serif</option>
+            <option value='monospace' " . ($fontFamily == 'monospace' ? 'selected' : '') . ">Monospace</option>
+            <option value='fantasy' " . ($fontFamily == 'fantasy' ? 'selected' : '') . ">Fantasy</option>
+            <option value='cursive' " . ($fontFamily == 'cursive' ? 'selected' : '') . ">Cursive</option>
+          </select><br/>
+          <label>Color de Texto:</label>
+          <input type='color' name='text_color' value='" . $textColor . "' required /><br/>
+          <label>Tamaño de Fuente:</label>
+          <input type='text' name='font_size' value='" . $fontSize . "' required /><br/>
+          <input type='submit' value='Guardar Configuración' />
+          </form>";
+    echo "<p><a href='?action=panel'>Volver al Panel</a></p>";
     renderFooter();
     exit;
 }
@@ -719,12 +638,8 @@ if ($action == 'presentation') {
         exit;
     }
 
-    // Obtener todos los temas, ordered by order_value then id
-    $stmt = $db->prepare("SELECT topics.*, IFNULL(topic_order.order_value, 0) as order_value
-                          FROM topics
-                          LEFT JOIN topic_order ON topics.id = topic_order.topic_id
-                          WHERE project_id = ?
-                          ORDER BY order_value ASC, topics.id ASC");
+    // Obtener todos los temas
+    $stmt = $db->prepare("SELECT * FROM topics WHERE project_id = ? ORDER BY id ASC");
     $stmt->execute([$project_id]);
     $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $topicsTree = buildTree($topics);
@@ -819,31 +734,27 @@ if ($action == 'export_scorm') {
         exit;
     }
 
-    // Obtener temas, ordered by order_value then id
-    $stmt = $db->prepare("SELECT topics.*, IFNULL(topic_order.order_value, 0) as order_value
-                          FROM topics
-                          LEFT JOIN topic_order ON topics.id = topic_order.topic_id
-                          WHERE project_id = ?
-                          ORDER BY order_value ASC, topics.id ASC");
+    // Obtener temas
+    $stmt = $db->prepare("SELECT * FROM topics WHERE project_id = ?");
     $stmt->execute([$project_id]);
     $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $topicsTree = buildTree($topics);
 
     // Generar <item> recursivamente
-    function generateItemsXML($topics) {
-        $itemsXML = "";
-        foreach ($topics as $topic) {
-            $identifier = "ITEM_" . $topic['id'];
-            $resourceRef = "RES_" . $topic['id'];
-            $itemsXML .= "<item identifier=\"" . $identifier . "\" identifierref=\"" . $resourceRef . "\">\n";
-            $itemsXML .= "<title>" . htmlspecialchars($topic['title']) . "</title>\n";
-            if (!empty($topic['children'])) {
-                $itemsXML .= generateItemsXML($topic['children']);
-            }
-            $itemsXML .= "</item>\n";
+function generateItemsXML($topics) {
+    $itemsXML = "";
+    foreach ($topics as $topic) {
+        $identifier = "ITEM_" . $topic['id'];
+        $resourceRef = "RES_" . $topic['id'];
+        $itemsXML .= "<item identifier=\"" . $identifier . "\" identifierref=\"" . $resourceRef . "\" isvisible=\"true\">\n";
+        $itemsXML .= "<title>" . htmlspecialchars($topic['title']) . "</title>\n";
+        if (!empty($topic['children'])) {
+            $itemsXML .= generateItemsXML($topic['children']);
         }
-        return $itemsXML;
+        $itemsXML .= "</item>\n";
     }
+    return $itemsXML;
+}
     $itemsXML = generateItemsXML($topicsTree);
 
     // Generar <resource> para cada topic
@@ -858,23 +769,29 @@ if ($action == 'export_scorm') {
     }
 
     // imsmanifest.xml
-    $manifestXML = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
-        . '<manifest identifier="MANIFEST_' . $project['id'] . '" version="1.2" '
-        . 'xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" '
-        . 'xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2" '
-        . 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-        . 'xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd '
-        . 'http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd">' . "\n"
-        . '<organizations default="ORG1">' . "\n"
-        . '<organization identifier="ORG1">' . "\n"
-        . '<title>' . htmlspecialchars($project['title']) . '</title>' . "\n"
-        . $itemsXML
-        . '</organization>' . "\n"
-        . '</organizations>' . "\n"
-        . '<resources>' . "\n"
-        . $resources
-        . '</resources>' . "\n"
-        . '</manifest>';
+// imsmanifest.xml
+$manifestXML = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+    . '<manifest identifier="MANIFEST_' . $project['id'] . '" version="1.2" '
+    . 'xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" '
+    . 'xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2" '
+    . 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+    . 'xmlns:adlseq="http://www.adlnet.org/xsd/adlseq_rootv1p2" '
+    . 'xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd '
+    . 'http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd '
+    . 'http://www.adlnet.org/xsd/adlseq_rootv1p2 adlseq_rootv1p2.xsd">' . "\n"
+    . '<organizations default="ORG1">' . "\n"
+    . '<organization identifier="ORG1">' . "\n"
+    . '<title>' . htmlspecialchars($project['title']) . '</title>' . "\n"
+    . $itemsXML
+    . '</organization>' . "\n"
+    . '</organizations>' . "\n"
+    . '<resources>' . "\n"
+    . $resources
+    . '</resources>' . "\n"
+    . '<sequencing>' . "\n"
+    . '<adlseq:sequencingRules adlseq:flow="true" />' . "\n"
+    . '</sequencing>' . "\n"
+    . '</manifest>';
 
     // SCORM API JS (minimal)
     $scormApiJS =
@@ -964,7 +881,6 @@ if ($action == 'export_scorm') {
 . "  font-family: var(--font-family);\n"
 . "  font-size: var(--font-size);\n"
 . "  margin: 0; padding: 20px;\n"
-. "  border-top: 15px solid var(--header-bg);\n"
 . "}\n"
 . "header {\n"
 . "  background: var(--header-bg);\n"
@@ -1019,7 +935,6 @@ if ($action == 'export_scorm') {
             . "  <div class='container'>\n"
             . "    <div>" . $contentSafe . "</div>\n"
             . "  </div>\n"
-            
             . "</body>\n"
             . "</html>";
 
@@ -1042,5 +957,109 @@ if ($action == 'export_scorm') {
     exit;
 }
 
-?>
+/* =============== DUPLICATE PROJECT =============== */
+if ($action == 'duplicate_project') {
+    $project_id = isset($_GET['id']) ? $_GET['id'] : '';
+    if (!$project_id || !isset($_SESSION['user_id'])) {
+        header("Location: ?action=panel");
+        exit;
+    }
+    $db = getDB();
+    $stmt = $db->prepare("SELECT * FROM projects WHERE id = ? AND user_id = ?");
+    $stmt->execute([$project_id, $_SESSION['user_id']]);
+    $project = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$project) {
+        header("Location: ?action=panel");
+        exit;
+    }
 
+    // Duplicate project
+    $stmt = $db->prepare("INSERT INTO projects (user_id, title, description) VALUES (?, ?, ?)");
+    $stmt->execute([$_SESSION['user_id'], $project['title'] . " (Copia)", $project['description']]);
+    $new_project_id = $db->lastInsertId();
+
+    // Recursive function to duplicate topics
+    function duplicateTopics($db, $project_id, $new_project_id, $parent_id = 0) {
+        $stmt = $db->prepare("SELECT * FROM topics WHERE project_id = ? AND parent_id = ?");
+        $stmt->execute([$project_id, $parent_id]);
+        $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($topics as $topic) {
+            $stmt = $db->prepare("INSERT INTO topics (project_id, parent_id, title, content, type, sort_order) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$new_project_id, $parent_id, $topic['title'], $topic['content'], $topic['type'], $topic['sort_order']]);
+            $new_topic_id = $db->lastInsertId();
+            // Recursively duplicate child topics
+            duplicateTopics($db, $project_id, $new_project_id, $topic['id']);
+        }
+    }
+
+    // Duplicate topics recursively
+    duplicateTopics($db, $project_id, $new_project_id);
+
+    header("Location: ?action=panel");
+    exit;
+}
+
+/* =============== REORDER TOPICS =============== */
+if ($action == 'reorder_topics') {
+    $project_id = isset($_POST['project_id']) ? $_POST['project_id'] : '';
+    $order = isset($_POST['order']) ? $_POST['order'] : [];
+    if (!$project_id || !isset($_SESSION['user_id']) || empty($order)) {
+        header("Location: ?action=panel");
+        exit;
+    }
+    $db = getDB();
+    foreach ($order as $index => $topic_id) {
+        $stmt = $db->prepare("UPDATE topics SET sort_order = ? WHERE id = ? AND project_id = ?");
+        $stmt->execute([$index, $topic_id, $project_id]);
+    }
+    echo json_encode(['status' => 'success']);
+    exit;
+}
+
+/* =============== EDIT PROJECT INFO =============== */
+if ($action == 'edit_project_info') {
+    $project_id = isset($_GET['id']) ? $_GET['id'] : '';
+    if (!$project_id || !isset($_SESSION['user_id'])) {
+        header("Location: ?action=panel");
+        exit;
+    }
+    $db = getDB();
+    $stmt = $db->prepare("SELECT * FROM projects WHERE id = ? AND user_id = ?");
+    $stmt->execute([$project_id, $_SESSION['user_id']]);
+    $project = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$project) {
+        header("Location: ?action=panel");
+        exit;
+    }
+
+    $error = '';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $title = isset($_POST['title']) ? $_POST['title'] : '';
+        $description = isset($_POST['description']) ? $_POST['description'] : '';
+        if (trim($title) == '') {
+            $error = "El título es obligatorio.";
+        } else {
+            $stmt = $db->prepare("UPDATE projects SET title = ?, description = ? WHERE id = ?");
+            $stmt->execute([$title, $description, $project_id]);
+            header("Location: ?action=panel");
+            exit;
+        }
+    }
+
+    renderHeader("Editar Información del Proyecto");
+    echo "<h2>Editar Información del Proyecto</h2>";
+    if ($error) {
+        echo "<p class='error'>" . $error . "</p>";
+    }
+    echo "<form method='post' action='?action=edit_project_info&id=" . $project_id . "'>";
+    echo "<label>Título:</label>";
+    echo "<input type='text' name='title' value='" . htmlspecialchars($project['title']) . "' required /><br/>";
+    echo "<label>Descripción:</label>";
+    echo "<textarea name='description'>" . htmlspecialchars($project['description']) . "</textarea><br/>";
+    echo "<input type='submit' value='Guardar Cambios' />";
+    echo "</form>";
+    echo "<p><a href='?action=panel'>Volver al Panel</a></p>";
+    renderFooter();
+    exit;
+}
+?>
