@@ -734,27 +734,27 @@ if ($action == 'export_scorm') {
         exit;
     }
 
-    // Obtener temas
-    $stmt = $db->prepare("SELECT * FROM topics WHERE project_id = ?");
+    // Obtener temas ordenados por sort_order
+    $stmt = $db->prepare("SELECT * FROM topics WHERE project_id = ? ORDER BY sort_order ASC");
     $stmt->execute([$project_id]);
     $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $topicsTree = buildTree($topics);
 
     // Generar <item> recursivamente
-function generateItemsXML($topics) {
-    $itemsXML = "";
-    foreach ($topics as $topic) {
-        $identifier = "ITEM_" . $topic['id'];
-        $resourceRef = "RES_" . $topic['id'];
-        $itemsXML .= "<item identifier=\"" . $identifier . "\" identifierref=\"" . $resourceRef . "\" isvisible=\"true\">\n";
-        $itemsXML .= "<title>" . htmlspecialchars($topic['title']) . "</title>\n";
-        if (!empty($topic['children'])) {
-            $itemsXML .= generateItemsXML($topic['children']);
+    function generateItemsXML($topics) {
+        $itemsXML = "";
+        foreach ($topics as $topic) {
+            $identifier = "ITEM_" . $topic['id'];
+            $resourceRef = "RES_" . $topic['id'];
+            $itemsXML .= "<item identifier=\"" . $identifier . "\" identifierref=\"" . $resourceRef . "\" isvisible=\"true\">\n";
+            $itemsXML .= "<title>" . htmlspecialchars($topic['title']) . "</title>\n";
+            if (!empty($topic['children'])) {
+                $itemsXML .= generateItemsXML($topic['children']);
+            }
+            $itemsXML .= "</item>\n";
         }
-        $itemsXML .= "</item>\n";
+        return $itemsXML;
     }
-    return $itemsXML;
-}
     $itemsXML = generateItemsXML($topicsTree);
 
     // Generar <resource> para cada topic
@@ -769,98 +769,97 @@ function generateItemsXML($topics) {
     }
 
     // imsmanifest.xml
-// imsmanifest.xml
-$manifestXML = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
-    . '<manifest identifier="MANIFEST_' . $project['id'] . '" version="1.2" '
-    . 'xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" '
-    . 'xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2" '
-    . 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-    . 'xmlns:adlseq="http://www.adlnet.org/xsd/adlseq_rootv1p2" '
-    . 'xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd '
-    . 'http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd '
-    . 'http://www.adlnet.org/xsd/adlseq_rootv1p2 adlseq_rootv1p2.xsd">' . "\n"
-    . '<organizations default="ORG1">' . "\n"
-    . '<organization identifier="ORG1">' . "\n"
-    . '<title>' . htmlspecialchars($project['title']) . '</title>' . "\n"
-    . $itemsXML
-    . '</organization>' . "\n"
-    . '</organizations>' . "\n"
-    . '<resources>' . "\n"
-    . $resources
-    . '</resources>' . "\n"
-    . '<sequencing>' . "\n"
-    . '<adlseq:sequencingRules adlseq:flow="true" />' . "\n"
-    . '</sequencing>' . "\n"
-    . '</manifest>';
+    $manifestXML = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+        . '<manifest identifier="MANIFEST_' . $project['id'] . '" version="1.2" '
+        . 'xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" '
+        . 'xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2" '
+        . 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+        . 'xmlns:adlseq="http://www.adlnet.org/xsd/adlseq_rootv1p2" '
+        . 'xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd '
+        . 'http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd '
+        . 'http://www.adlnet.org/xsd/adlseq_rootv1p2 adlseq_rootv1p2.xsd">' . "\n"
+        . '<organizations default="ORG1">' . "\n"
+        . '<organization identifier="ORG1">' . "\n"
+        . '<title>' . htmlspecialchars($project['title']) . '</title>' . "\n"
+        . $itemsXML
+        . '</organization>' . "\n"
+        . '</organizations>' . "\n"
+        . '<resources>' . "\n"
+        . $resources
+        . '</resources>' . "\n"
+        . '<sequencing>' . "\n"
+        . '<adlseq:sequencingRules adlseq:flow="true" />' . "\n"
+        . '</sequencing>' . "\n"
+        . '</manifest>';
 
     // SCORM API JS (minimal)
     $scormApiJS =
-"// Minimal SCORM 1.2 API Example\n"
-. "var g_api = null;\n"
-. "var g_isInitialized = false;\n\n"
-. "function findAPI(win) {\n"
-. "  var attempts = 0;\n"
-. "  while ((win.API == null) && (win.parent != null) && (win.parent != win) && (attempts <= 10)) {\n"
-. "    attempts++;\n"
-. "    win = win.parent;\n"
-. "  }\n"
-. "  return win.API;\n"
-. "}\n\n"
-. "function getAPI() {\n"
-. "  if (g_api == null) {\n"
-. "    g_api = findAPI(window);\n"
-. "  }\n"
-. "  return g_api;\n"
-. "}\n\n"
-. "function scormInit() {\n"
-. "  var api = getAPI();\n"
-. "  if (api == null) return;\n"
-. "  if (!g_isInitialized) {\n"
-. "    var result = api.LMSInitialize(\"\");\n"
-. "    g_isInitialized = (result.toString() == \"true\");\n"
-. "  }\n"
-. "}\n\n"
-. "function scormFinish() {\n"
-. "  var api = getAPI();\n"
-. "  if (api == null) return;\n"
-. "  if (g_isInitialized) {\n"
-. "    api.LMSFinish(\"\");\n"
-. "  }\n"
-. "}\n\n"
-. "function scormCommit() {\n"
-. "  var api = getAPI();\n"
-. "  if (api == null) return;\n"
-. "  if (g_isInitialized) {\n"
-. "    api.LMSCommit(\"\");\n"
-. "  }\n"
-. "}\n\n"
-. "function scormSetValue(name, value) {\n"
-. "  var api = getAPI();\n"
-. "  if (api && g_isInitialized) {\n"
-. "    api.LMSSetValue(name, value);\n"
-. "  }\n"
-. "}\n\n"
-. "function scormGetValue(name) {\n"
-. "  var api = getAPI();\n"
-. "  if (api && g_isInitialized) {\n"
-. "    return api.LMSGetValue(name);\n"
-. "  }\n"
-. "  return \"\";\n"
-. "}\n\n"
-. "function markTopicVisited(topicId) {\n"
-. "  var visited = scormGetValue(\"cmi.suspend_data\") || \"\";\n"
-. "  if (visited.indexOf(\",\" + topicId + \",\") === -1) {\n"
-. "    visited += \",\" + topicId + \",\";\n"
-. "    scormSetValue(\"cmi.suspend_data\", visited);\n"
-. "    scormCommit();\n"
-. "  }\n"
-. "  // Set completion status and score\n"
-. "  scormSetValue(\"cmi.core.lesson_status\", \"completed\");\n"
-. "  scormSetValue(\"cmi.core.score.raw\", \"10\");\n"
-. "  scormSetValue(\"cmi.core.score.min\", \"0\");\n"
-. "  scormSetValue(\"cmi.core.score.max\", \"10\");\n"
-. "  scormCommit();\n"
-. "}\n";
+    "// Minimal SCORM 1.2 API Example\n"
+    . "var g_api = null;\n"
+    . "var g_isInitialized = false;\n\n"
+    . "function findAPI(win) {\n"
+    . "  var attempts = 0;\n"
+    . "  while ((win.API == null) && (win.parent != null) && (win.parent != win) && (attempts <= 10)) {\n"
+    . "    attempts++;\n"
+    . "    win = win.parent;\n"
+    . "  }\n"
+    . "  return win.API;\n"
+    . "}\n\n"
+    . "function getAPI() {\n"
+    . "  if (g_api == null) {\n"
+    . "    g_api = findAPI(window);\n"
+    . "  }\n"
+    . "  return g_api;\n"
+    . "}\n\n"
+    . "function scormInit() {\n"
+    . "  var api = getAPI();\n"
+    . "  if (api == null) return;\n"
+    . "  if (!g_isInitialized) {\n"
+    . "    var result = api.LMSInitialize(\"\");\n"
+    . "    g_isInitialized = (result.toString() == \"true\");\n"
+    . "  }\n"
+    . "}\n\n"
+    . "function scormFinish() {\n"
+    . "  var api = getAPI();\n"
+    . "  if (api == null) return;\n"
+    . "  if (g_isInitialized) {\n"
+    . "    api.LMSFinish(\"\");\n"
+    . "  }\n"
+    . "}\n\n"
+    . "function scormCommit() {\n"
+    . "  var api = getAPI();\n"
+    . "  if (api == null) return;\n"
+    . "  if (g_isInitialized) {\n"
+    . "    api.LMSCommit(\"\");\n"
+    . "  }\n"
+    . "}\n\n"
+    . "function scormSetValue(name, value) {\n"
+    . "  var api = getAPI();\n"
+    . "  if (api && g_isInitialized) {\n"
+    . "    api.LMSSetValue(name, value);\n"
+    . "  }\n"
+    . "}\n\n"
+    . "function scormGetValue(name) {\n"
+    . "  var api = getAPI();\n"
+    . "  if (api && g_isInitialized) {\n"
+    . "    return api.LMSGetValue(name);\n"
+    . "  }\n"
+    . "  return \"\";\n"
+    . "}\n\n"
+    . "function markTopicVisited(topicId) {\n"
+    . "  var visited = scormGetValue(\"cmi.suspend_data\") || \"\";\n"
+    . "  if (visited.indexOf(\",\" + topicId + \",\") === -1) {\n"
+    . "    visited += \",\" + topicId + \",\";\n"
+    . "    scormSetValue(\"cmi.suspend_data\", visited);\n"
+    . "    scormCommit();\n"
+    . "  }\n"
+    . "  // Set completion status and score\n"
+    . "  scormSetValue(\"cmi.core.lesson_status\", \"completed\");\n"
+    . "  scormSetValue(\"cmi.core.score.raw\", \"10\");\n"
+    . "  scormSetValue(\"cmi.core.score.min\", \"0\");\n"
+    . "  scormSetValue(\"cmi.core.score.max\", \"10\");\n"
+    . "  scormCommit();\n"
+    . "}\n";
 
     // Basic style
     $corporateColor = getUserConfig($_SESSION['user_id'], 'color_corporativo');
@@ -869,24 +868,24 @@ $manifestXML = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
     $fontSize = getUserConfig($_SESSION['user_id'], 'tamaño_de_fuente');
 
     $styleCSS =
-"@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');\n"
-. ":root {\n"
-. "  --header-bg: " . $corporateColor . ";\n"
-. "  --header-text: #ffffff;\n"
-. "  --text-color: " . $textColor . ";\n"
-. "  --font-family: " . $fontFamily . ";\n"
-. "  --font-size: " . $fontSize . ";\n"
-. "}\n"
-. "body {\n"
-. "  font-family: var(--font-family);\n"
-. "  font-size: var(--font-size);\n"
-. "  margin: 0; padding: 20px;\n"
-. "}\n"
-. "header {\n"
-. "  background: var(--header-bg);\n"
-. "  color: var(--header-text);\n"
-. "  padding: 15px;\n"
-. "}\n";
+    "@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');\n"
+    . ":root {\n"
+    . "  --header-bg: " . $corporateColor . ";\n"
+    . "  --header-text: #ffffff;\n"
+    . "  --text-color: " . $textColor . ";\n"
+    . "  --font-family: " . $fontFamily . ";\n"
+    . "  --font-size: " . $fontSize . ";\n"
+    . "}\n"
+    . "body {\n"
+    . "  font-family: var(--font-family);\n"
+    . "  font-size: var(--font-size);\n"
+    . "  margin: 0; padding: 20px;\n"
+    . "}\n"
+    . "header {\n"
+    . "  background: var(--header-bg);\n"
+    . "  color: var(--header-text);\n"
+    . "  padding: 15px;\n"
+    . "}\n";
 
     // Crear ZIP
     $zip = new ZipArchive();
