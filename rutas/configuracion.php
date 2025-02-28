@@ -41,6 +41,8 @@
             <option value='monospace' " . ($fontFamily == 'monospace' ? 'selected' : '') . ">Monospace</option>
             <option value='fantasy' " . ($fontFamily == 'fantasy' ? 'selected' : '') . ">Fantasy</option>
             <option value='cursive' " . ($fontFamily == 'cursive' ? 'selected' : '') . ">Cursive</option>
+                    <option value='Ubuntu' " . ($fontFamily == 'Ubuntu' ? 'selected' : '') . ">Ubuntu</option>
+
           </select><br/>
           <label>Color de Texto:</label>
           <input type='color' name='text_color' value='" . $textColor . "' required /><br/>
